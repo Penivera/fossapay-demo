@@ -16,7 +16,8 @@
     "format:check": "prettier --check .",
     "dev:offramp": "npm run dev --workspace=demos/near-offramp",
     "dev:safedeal": "npm run dev --workspace=demos/safedeal",
-    "dev:squadpay": "npm run dev --workspace=demos/squadpay"
+    "dev:squadpay": "npm run dev --workspace=demos/squadpay",
+    "dev:ajosphere": "npm run dev --workspace=demos/ajosphere"
   },
   "devDependencies": {
     "eslint": "^10.15.0",

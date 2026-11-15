@@ -88,6 +88,25 @@ This document records architectural, functional, and engineering decisions made 
 - **Why:** Satisfies the requirement that retrying payout completion never creates duplicate payouts, and clearly records unpaid member state.
 - **Revisit if:** Host needs secondary payout tranches for members paying after partial close.
 
+## [Phase 5] AjoSphere KYC Name Cross-Matching & Privacy Storage
+- **Question:** How should BVN/NIN verification and legal name matching be enforced while respecting privacy?
+- **Decision:** Hash the 11-digit BVN/NIN with SHA-256, store only `bvnOrNinHash` and `bvnOrNinLast4` (never logging or storing plaintext BVN/NIN), and cross-match uppercase name tokens between the KYC verification record and the NUBAN bank enquiry account holder.
+- **Why:** Complies with privacy and data protection standards while preventing pseudonym fraud in savings clubs.
+- **Revisit if:** Live biometric facial matching or liveness check APIs become available.
+
+## [Phase 5] AjoSphere Friday Defaulter Mitigation Policy
+- **Question:** How should Friday disbursals handle incomplete pots when a member defaults?
+- **Decision:** Automatically pause disbursal into `HELD_DEFICIT`, log an urgent reminder to the defaulter, and present the admin with two explicit options: "Wait for Defaulter" (disburses once late deposit lands) or "Disburse Partial Pot" (disburses collected funds with idempotency key `ajo_payout_<clubId>_round<n>`).
+- **Why:** Protects recipient expectations, aligns with authentic community Esusu governance, and prevents unauthorized under-disbursals.
+- **Revisit if:** Automatic collateral liquidation or penalty interest is introduced.
+
+## [Phase 5] AjoSphere Permanent Dedicated Accounts vs Dynamic Checkouts
+- **Question:** Which FossaPay account rail should be used for recurring weekly Ajo contributions?
+- **Decision:** Provision permanent dedicated Providus Bank virtual accounts (`POST /api/v1/wallets/fiat/create`) per member rather than dynamic 30-minute checkouts.
+- **Why:** Dedicated NUBANs persist indefinitely and can be saved in commercial banking apps for automated scheduled weekly transfers.
+- **Revisit if:** Members explicitly request card or USSD checkouts for one-off contributions.
+
+
 
 
 

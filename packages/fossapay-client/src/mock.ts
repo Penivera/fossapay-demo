@@ -581,12 +581,16 @@ export class MockFossaPayLedger {
     }
 
     let fullName = 'OLUWASEUN CHUKWUDI ADENIYI';
-    if (cleanNum === '22233344455') {
+    if (cleanNum === '12345678901' || cleanNum === '01234567891') {
+      fullName = 'OLUWASEUN CHUKWUDI ADENIYI';
+    } else if (cleanNum === '22233344455') {
       fullName = 'TUNDE BALOGUN';
     } else if (cleanNum === '11223344556') {
       fullName = 'CHIDINMA OKONKWO';
     } else if (cleanNum === '99887766554') {
       fullName = 'IBRAHIM MUSA';
+    } else if (cleanNum === '12345678900') {
+      fullName = 'BABATUNDE ADEYEMI';
     } else {
       let sum = 0;
       for (let i = 0; i < cleanNum.length; i++) {

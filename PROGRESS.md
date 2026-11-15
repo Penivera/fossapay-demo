@@ -39,12 +39,12 @@
 - [x] Gate: Build passes, E2E covers 3 participants paying, live SSE updates, single idempotent payout
 
 ## Phase 5: demos/ajosphere (Digital Rotating Savings Club)
-- [ ] Club creation, invite link join, KYC step (BVN/NIN) matching identity name against payout account name
-- [ ] Permanent dedicated virtual account display, rotation calendar, contribution tracker, audit ledger, reminder log
-- [ ] Scheduler simulation (Mon-Thu contribution window, Fri 09:00 disbursal) with demo time-advancement control panel
-- [ ] Payout key `ajo_payout_<clubId>_round<n>`, defaulter handling (hold/partial/wait)
-- [ ] Security: Never log full BVN/NIN; store only hash + last 4 digits
-- [ ] Gate: Build passes, E2E covers 5-member 5-round simulation including late contributor
+- [x] Club creation, invite link join, KYC step (BVN/NIN) matching identity name against payout account name
+- [x] Permanent dedicated virtual account display, rotation calendar, contribution tracker, audit ledger, reminder log
+- [x] Scheduler simulation (Mon-Thu contribution window, Fri 09:00 disbursal) with demo time-advancement control panel
+- [x] Payout key `ajo_payout_<clubId>_round<n>`, defaulter handling (hold/partial/wait)
+- [x] Security: Never log full BVN/NIN; store only hash + last 4 digits
+- [x] Gate: Build passes, E2E covers 5-member 5-round simulation including late contributor
 
 ## Phase 6: Integration, Polish & Documentation
 - [ ] Root scripts: `dev:<demo>`, `build`, `test`, `test:e2e`
