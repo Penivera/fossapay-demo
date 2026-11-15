@@ -32,11 +32,11 @@
 - [x] Gate: Build passes, E2E covers happy path and dispute-to-refund path
 
 ## Phase 4: demos/squadpay (Live Group Bill Splitter)
-- [ ] Room creation with equal and itemized splits, host bank enquiry, participant cards
-- [ ] SSE stream at `/api/rooms/[id]/stream` and per-participant checkouts (`squad_<roomId>_<participantId>`)
-- [ ] Remainder kobo deterministic distribution for itemized splits
-- [ ] Checkout expiry + "Regenerate Account", partial close & withdraw with unsettled marking, payout idempotency key `squad_payout_<roomId>`
-- [ ] Gate: Build passes, E2E covers 3 participants paying, live SSE updates, single idempotent payout
+- [x] Room creation with equal and itemized splits, host bank enquiry, participant cards
+- [x] SSE stream at `/api/rooms/[id]/stream` and per-participant checkouts (`squad_<roomId>_<participantId>`)
+- [x] Remainder kobo deterministic distribution for itemized splits
+- [x] Checkout expiry + "Regenerate Account", partial close & withdraw with unsettled marking, payout idempotency key `squad_payout_<roomId>`
+- [x] Gate: Build passes, E2E covers 3 participants paying, live SSE updates, single idempotent payout
 
 ## Phase 5: demos/ajosphere (Digital Rotating Savings Club)
 - [ ] Club creation, invite link join, KYC step (BVN/NIN) matching identity name against payout account name

@@ -70,5 +70,24 @@ This document records architectural, functional, and engineering decisions made 
 - **Why:** Keeps the implementation self-contained, requires no external S3/GCS credentials, and is accessible directly in the browser.
 - **Revisit if:** Cloud object storage (GCS/S3) is configured.
 
+## [Phase 4] SquadPay Remainder Kobo Distribution
+- **Question:** When an equal split or itemized total has remainder kobo (e.g. ₦10,000 amongst 3 people = 3,333.333... kobo), how are remainder pennies distributed?
+- **Decision:** Use `@fossapay/client` `distributeAmount(total, n)` which assigns the remainder kobo deterministically one-by-one to the first `r` participants.
+- **Why:** Guarantees `sum(shares) === total` down to the exact kobo, strictly preventing floating-point rounding errors.
+- **Revisit if:** The room host chooses to absorb or waive remainder differences.
+
+## [Phase 4] SquadPay Checkout Expiry & Regeneration
+- **Question:** How should expired participant checkout accounts be renewed?
+- **Decision:** Provide a "Regenerate Account" button in the participant modal and an API endpoint `/api/rooms/[id]/regenerate` which increments a per-participant attempt counter, creating a new checkout ref `squad_<roomId>_<participantId>_v<attempt>` with a fresh 30-minute timer.
+- **Why:** Complies with the checkout expiry requirement while maintaining deterministic references and idempotency.
+- **Revisit if:** FossaPay adds an in-place TTL extension endpoint to existing checkouts.
+
+## [Phase 4] SquadPay Partial Close & Single Payout Idempotency
+- **Question:** How should partial settlements behave when only some members have paid?
+- **Decision:** Mark unpaid participants as `UNSETTLED`, transition room state to `PARTIALLY_SETTLED`, and trigger the host payout for the collected amount using idempotency key `squad_payout_<roomId>`.
+- **Why:** Satisfies the requirement that retrying payout completion never creates duplicate payouts, and clearly records unpaid member state.
+- **Revisit if:** Host needs secondary payout tranches for members paying after partial close.
+
+
 
 
