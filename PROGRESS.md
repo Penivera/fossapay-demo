@@ -7,12 +7,12 @@
 - [x] Gate: Install succeeds and workspace typecheck passes
 
 ## Phase 1: packages/fossapay-client
-- [ ] Implement `FossaPayClient` class (customers, wallets, checkouts, payouts, transfers, kyc)
-- [ ] Add `WebhookVerifier` (HMAC-SHA256 over `JSON.stringify(body.data)` with `crypto.timingSafeEqual`)
-- [ ] Define exhaustive TypeScript types for requests, responses, and webhook payloads
-- [ ] Implement mock transport: in-memory ledger, idempotency cache, webhook dispatcher with signing, configurable delay, deterministic test bank list, deterministic bank-enquiry names
-- [ ] Unit tests (vitest) covering: envelope unwrapping, idempotent replay, signature accept/reject, money math
-- [ ] Gate: All tests pass and package builds
+- [x] Implement `FossaPayClient` class (customers, wallets, checkouts, payouts, transfers, kyc)
+- [x] Add `WebhookVerifier` (HMAC-SHA256 over `JSON.stringify(body.data)` with `crypto.timingSafeEqual`)
+- [x] Define exhaustive TypeScript types for requests, responses, and webhook payloads
+- [x] Implement mock transport: in-memory ledger, idempotency cache, webhook dispatcher with signing, configurable delay, deterministic test bank list, deterministic bank-enquiry names
+- [x] Unit tests (vitest) covering: envelope unwrapping, idempotent replay, signature accept/reject, money math
+- [x] Gate: All tests pass and package builds
 
 ## Phase 2: demos/near-offramp (Flagship)
 - [ ] Screen 1: Terminal with origin asset input, solver rate, NGN output, bank selector, NUBAN auto-resolve badge, telemetry/fees block, CTA

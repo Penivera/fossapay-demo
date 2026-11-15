@@ -33,3 +33,16 @@ This document records architectural, functional, and engineering decisions made 
 - **Decision:** Use a mock deterministic rate provider with a configurable baseline constant (default `1 USDT = 1 USDC (Solana) -> 1,595.00 NGN`, with ₦50 payout fee).
 - **Why:** Must never present mock rates as real live oracles and must run 100% offline.
 - **Revisit if:** External real-time price feeds (e.g., Pyth, CoinGecko) are requested.
+
+## [Phase 1] Client Field Definitions and Unverified Types
+- **Question:** Which API field names in `@fossapay/client` cannot be confirmed from existing specs?
+- **Decision:** Marked `// UNVERIFIED` on: `BankEnquiryResult.sessionId`, `CreateCustomerRequest.metadata`, `CustomerRecord.metadata`, `CreateFiatWalletRequest.accountType`, `CreateCryptoWalletRequest.customerId`, `TransferFiatRequest.narration`, `CreateCheckoutRequest.metadata`.
+- **Why:** Adheres strictly to the requirement to flag unverified fields while maintaining full TypeScript support.
+- **Revisit if:** Official API schema specs are provided.
+
+## [Phase 1] In-Memory Mock Ledger & Hot-Reload Singleton
+- **Question:** How should mock state persist across multiple API route invocations during development hot-reloads?
+- **Decision:** Anchor `defaultMockLedger` onto `globalThis.__fossapayMockLedger` in non-production environments.
+- **Why:** Ensures that customer accounts, wallets, checkouts, and payouts created in one route remain visible across all routes and SSE streams without external database dependencies.
+- **Revisit if:** Persistent file or SQLite storage is preferred across complete server restarts.
+
