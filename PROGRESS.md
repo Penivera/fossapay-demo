@@ -47,7 +47,7 @@
 - [x] Gate: Build passes, E2E covers 5-member 5-round simulation including late contributor
 
 ## Phase 6: Integration, Polish & Documentation
-- [ ] Root scripts: `dev:<demo>`, `build`, `test`, `test:e2e`
-- [ ] Root `README.md` and per-demo `README.md` (run instructions, env vars, mock behavior, live flip instructions)
-- [ ] Mobile responsive layout review, loading/error states, empty states
-- [ ] Final Gate: Clean clone install, build, test, and test:e2e all pass
+- [x] Root scripts: `dev:<demo>`, `build`, `test`, `test:e2e`
+- [x] Root `README.md` and per-demo `README.md` (run instructions, env vars, mock behavior, live flip instructions)
+- [x] Mobile responsive layout review, loading/error states, empty states
+- [x] Final Gate: Clean clone install, build, test, and test:e2e all pass

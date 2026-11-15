@@ -106,6 +106,13 @@ This document records architectural, functional, and engineering decisions made 
 - **Why:** Dedicated NUBANs persist indefinitely and can be saved in commercial banking apps for automated scheduled weekly transfers.
 - **Revisit if:** Members explicitly request card or USSD checkouts for one-off contributions.
 
+## [Phase 6] Unified Workspace E2E Test Runner & Cross-Workspace Scripts
+- **Question:** How should the monorepo coordinate end-to-end testing across heterogeneous demo workspaces?
+- **Decision:** Configure `"test:e2e": "npm run test:e2e --workspaces --if-present"` at root alongside workspace-specific dev scripts (`dev:offramp`, `dev:safedeal`, `dev:squadpay`, `dev:ajosphere`).
+- **Why:** Delivers a single turnkey command for comprehensive verification while giving developers direct individual dev shortcuts.
+- **Revisit if:** Sub-projects are sharded into separate independent CI pipelines.
+
+
 
 
 
