@@ -58,4 +58,17 @@ This document records architectural, functional, and engineering decisions made 
 - **Why:** Prevents breaking offline demos when external solver APIs are unreachable or have undocumented parameter updates.
 - **Revisit if:** Production 1Click API keys and contracts are provided.
 
+## [Phase 3] SafeDeal Legal State Machine & Inspection Auto-Release
+- **Question:** How should illegal lifecycle transitions and the 24-hour auto-release countdown be enforced?
+- **Decision:** Enforce transitions strictly on the server through a transition lookup table. When entering `INSPECTION_PERIOD`, compute `inspectionExpiresAt` and register an in-process scheduled timeout callback that auto-releases to the seller upon expiration unless a dispute was raised.
+- **Why:** Complies with strict server-side state enforcement and lets demo users verify the 24-hour auto-release behavior in seconds using configurable demo timers.
+- **Revisit if:** Multi-node horizontal scaling requires Redis/BullMQ distributed job scheduling.
+
+## [Phase 3] SafeDeal Dispute Photo Storage
+- **Question:** Where should dispute evidence photos be saved?
+- **Decision:** Store multipart uploads on the local filesystem under `public/uploads/`, returning the public asset URL to render in the admin mediation portal.
+- **Why:** Keeps the implementation self-contained, requires no external S3/GCS credentials, and is accessible directly in the browser.
+- **Revisit if:** Cloud object storage (GCS/S3) is configured.
+
+
 

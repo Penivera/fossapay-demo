@@ -24,12 +24,12 @@
 - [x] Gate: Typecheck and build pass, automated E2E script runs full off-ramp to receipt
 
 ## Phase 3: demos/safedeal (P2P Social Commerce Escrow)
-- [ ] Deal creation, shareable link `/d/[id]` (buyer view and seller secret token view), escrow timeline
-- [ ] State machine: `DRAFT` -> `WAITING_PAYMENT` -> `ESCROW_LOCKED` -> `DISPATCHED` -> `INSPECTION_PERIOD` -> `RELEASED` | `DISPUTED` -> `REFUNDED`
-- [ ] Demo-only courier drop-off simulation and configurable inspection timer with auto-release
-- [ ] Dispute flow with reason + local photo upload, and admin mediation page at `/admin`
-- [ ] Release performs wallet transfer then payout (idempotent); refund performs payout to buyer bank
-- [ ] Gate: Build passes, E2E covers happy path and dispute-to-refund path
+- [x] Deal creation, shareable link `/d/[id]` (buyer view and seller secret token view), escrow timeline
+- [x] State machine: `DRAFT` -> `WAITING_PAYMENT` -> `ESCROW_LOCKED` -> `DISPATCHED` -> `INSPECTION_PERIOD` -> `RELEASED` | `DISPUTED` -> `REFUNDED`
+- [x] Demo-only courier drop-off simulation and configurable inspection timer with auto-release
+- [x] Dispute flow with reason + local photo upload, and admin mediation page at `/admin`
+- [x] Release performs wallet transfer then payout (idempotent); refund performs payout to buyer bank
+- [x] Gate: Build passes, E2E covers happy path and dispute-to-refund path
 
 ## Phase 4: demos/squadpay (Live Group Bill Splitter)
 - [ ] Room creation with equal and itemized splits, host bank enquiry, participant cards

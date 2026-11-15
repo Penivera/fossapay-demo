@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dev:offramp": "npm run dev --workspace=demos/near-offramp"
+    "dev:offramp": "npm run dev --workspace=demos/near-offramp",
+    "dev:safedeal": "npm run dev --workspace=demos/safedeal"
   },
   "devDependencies": {
     "eslint": "^10.15.0",
