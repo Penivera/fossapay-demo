@@ -21,7 +21,9 @@ interface OffRampCardProps {
     bankCode: string;
     bankName: string;
     accountName: string;
-    netNgn: number;
+    netNgn: number | string;
+    exchangeRateNgn?: number | string;
+    minReceivedUsdc?: string;
     quoteId: string;
     depositAddress: string;
   }) => void;
@@ -51,15 +53,17 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onOpenWalletModal, onI
   const [quote, setQuote] = useState<{
     quoteId: string;
     depositAddress: string;
-    netNgn: number;
-    exchangeRateNgn: number;
-    fiatPayoutFeeNgn: number;
+    netNgn: number | string;
+    exchangeRateNgn: number | string;
+    fiatPayoutFeeNgn: number | string;
+    minReceivedUsdc?: string;
   } | null>({
     quoteId: 'quote_initial',
     depositAddress: '0x3a9f1b4c798e8c2',
-    netNgn: 79700.00,
-    exchangeRateNgn: 1595.00,
-    fiatPayoutFeeNgn: 50.00,
+    netNgn: '79700.00',
+    exchangeRateNgn: '1595.00',
+    fiatPayoutFeeNgn: '50.00',
+    minReceivedUsdc: '49.95',
   });
   const [isQuoting, setIsQuoting] = useState<boolean>(false);
 
@@ -199,6 +203,8 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onOpenWalletModal, onI
       bankName: currentBank.name,
       accountName: resolvedAccountName,
       netNgn: quote.netNgn,
+      exchangeRateNgn: quote.exchangeRateNgn,
+      minReceivedUsdc: quote.minReceivedUsdc,
       quoteId: quote.quoteId,
       depositAddress: quote.depositAddress,
     });

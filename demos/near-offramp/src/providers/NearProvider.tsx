@@ -8,7 +8,7 @@ interface NearContextType {
   isConnected: boolean;
   walletName: string | null;
   connector: NearConnector | null;
-  connect: (mode?: 'fastauth' | 'manifest') => Promise<void>;
+  connect: (mode?: 'fastauth' | 'manifest' | 'demo') => Promise<void>;
   disconnect: () => Promise<void>;
   signDebit: (depositAddress: string, amount: string) => Promise<string>;
 }
@@ -54,7 +54,13 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const connect = useCallback(async (mode?: 'fastauth' | 'manifest') => {
+  const connect = useCallback(async (mode?: 'fastauth' | 'manifest' | 'demo') => {
+    if (mode === 'demo') {
+      setAccountId('alice.near');
+      setWalletName('DEMO WALLET');
+      return;
+    }
+
     if (mode === 'fastauth') {
       setAccountId('fastauth.near');
       setWalletName('FASTAUTH PASSKEY');

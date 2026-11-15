@@ -46,3 +46,16 @@ This document records architectural, functional, and engineering decisions made 
 - **Why:** Ensures that customer accounts, wallets, checkouts, and payouts created in one route remain visible across all routes and SSE streams without external database dependencies.
 - **Revisit if:** Persistent file or SQLite storage is preferred across complete server restarts.
 
+## [Phase 2] Wallet Adapter Matrix and Unwired Connectors
+- **Question:** How should unwired wallet connectors (MetaMask, Rabby, Solflare, Bitte, etc.) be presented in the Near Off-Ramp terminal?
+- **Decision:** Render the full 4-tab grid from `01A-FRONTEND-WIREFRAMES.md` (`SOCIAL / PASSKEYS`, `NEAR NATIVE`, `EVM / MULTI`, `SOL`). Implement an offline `Demo Wallet` (alice.near, 420.50 USDT) and `FastAuth` passkey adapter that work immediately, while marking unwired external extension wallets "Coming soon" with in-UI notice banners.
+- **Why:** Keeps the demo completely functional offline without requiring multiple browser extensions, while remaining 100% faithful to the visual specification.
+- **Revisit if:** Specific third-party browser wallet libraries are required to be bundled.
+
+## [Phase 2] Solver Adapter & 1Click Endpoints
+- **Question:** How should NEAR Intents cross-chain routing be integrated?
+- **Decision:** Put routing behind `SolverAdapter` interface with `MockSolverAdapter` as active default, and `NearIntentsSolverAdapter` with documented `https://1click.chaindefuser.com/v0/quote` endpoints falling back gracefully.
+- **Why:** Prevents breaking offline demos when external solver APIs are unreachable or have undocumented parameter updates.
+- **Revisit if:** Production 1Click API keys and contracts are provided.
+
+

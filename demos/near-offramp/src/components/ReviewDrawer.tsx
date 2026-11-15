@@ -12,11 +12,11 @@ interface ReviewDrawerProps {
     originAsset: Asset;
     amountIn: string;
     minReceivedUsdc: string;
-    netNgn: number;
+    netNgn: number | string;
     accountNumber: string;
     bankName: string;
     accountName: string;
-    exchangeRateNgn: number;
+    exchangeRateNgn: number | string;
   };
 }
 

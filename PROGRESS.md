@@ -15,13 +15,13 @@
 - [x] Gate: All tests pass and package builds
 
 ## Phase 2: demos/near-offramp (Flagship)
-- [ ] Screen 1: Terminal with origin asset input, solver rate, NGN output, bank selector, NUBAN auto-resolve badge, telemetry/fees block, CTA
-- [ ] Screen 2: 4-step execution telemetry driven by SSE with progress bar
-- [ ] Screen 3: Settlement receipt with PDF download (client-side/lightweight route)
-- [ ] Wallet Modal with NEAR Connect, Passkeys/FastAuth, EVM, Solana layout + offline Demo Wallet adapter
-- [ ] SolverAdapter interface with `MockSolverAdapter` and `NearIntentsSolverAdapter` stub
-- [ ] Backend orchestration: bank enquiry -> quote -> execute -> payout (`offramp_payout_<intentId>_1`) -> webhook -> receipt
-- [ ] Gate: Typecheck and build pass, automated E2E script runs full off-ramp to receipt
+- [x] Screen 1: Terminal with origin asset input, solver rate, NGN output, bank selector, NUBAN auto-resolve badge, telemetry/fees block, CTA
+- [x] Screen 2: 4-step execution telemetry driven by SSE with progress bar
+- [x] Screen 3: Settlement receipt with PDF download (client-side/lightweight route)
+- [x] Wallet Modal with NEAR Connect, Passkeys/FastAuth, EVM, Solana layout + offline Demo Wallet adapter
+- [x] SolverAdapter interface with `MockSolverAdapter` and `NearIntentsSolverAdapter` stub
+- [x] Backend orchestration: bank enquiry -> quote -> execute -> payout (`offramp_payout_<intentId>_1`) -> webhook -> receipt
+- [x] Gate: Typecheck and build pass, automated E2E script runs full off-ramp to receipt
 
 ## Phase 3: demos/safedeal (P2P Social Commerce Escrow)
 - [ ] Deal creation, shareable link `/d/[id]` (buyer view and seller secret token view), escrow timeline
