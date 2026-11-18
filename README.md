@@ -11,7 +11,7 @@ Collections, payouts, wallets, identity checks and webhooks, taught through work
 ![Node](https://img.shields.io/badge/node-%E2%89%A520-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 
-[**Landing page**](https://penivera.github.io/fossapay-demo/) · [**Integration guide**](docs/integration/README.md) · [Quick start](#quick-start) · [Contributing](CONTRIBUTING.md)
+[**Landing page**](https://fossapay-demo.peni.dev/) · [**Integration guide**](docs/integration/README.md) · [Quick start](#quick-start) · [Contributing](CONTRIBUTING.md)
 
 </div>
 

@@ -42,3 +42,6 @@ Thumbs.db
 # Temporary Caches
 .turbo/
 .cache/
+
+# Vercel
+.vercel

@@ -35,7 +35,7 @@
   "bugs": {
     "url": "https://github.com/Penivera/fossapay-demo/issues"
   },
-  "homepage": "https://github.com/Penivera/fossapay-demo#readme",
+  "homepage": "https://fossapay-demo.peni.dev",
   "engines": {
     "node": ">=20",
     "npm": ">=10"
