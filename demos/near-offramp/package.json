@@ -14,7 +14,7 @@
   "dependencies": {
     "@fossapay/client": "*",
     "@fossapay/ui": "*",
-    "@hot-labs/near-connect": "^0.8.2",
+    "@hot-labs/near-connect": "^0.12.0",
     "bignumber.js": "^11.1.5",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
@@ -29,7 +29,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.1",
+    "postcss": "^8.5.33",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0",
     "vitest": "^5.1.0"
