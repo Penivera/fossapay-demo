@@ -214,22 +214,20 @@ export function createWebhookServer() {
         );
 
         if (payload) {
-          const routedTo = await forwardWebhook(rawBody, { legacy: signature, v2: signatureV2 }, payload);
-
-          eventHistory.unshift({
+          // Record immediately so the inspector never waits on slow or offline demo apps
+          const recorded: RecordedWebhookEvent = {
             id: payload.eventId || `evt_${Date.now()}`,
             receivedAt: new Date().toISOString(),
             signature: signature || signatureV2,
             isValidSignature: true,
             event: payload,
-            routedTo,
-          });
+            routedTo: [],
+          };
+          eventHistory.unshift(recorded);
+          if (eventHistory.length > 100) eventHistory.pop();
 
-          if (eventHistory.length > 100) {
-            eventHistory.pop();
-          }
-
-          console.log(`[Gateway] Event ${payload.eventType || 'unknown'} routed to: ${routedTo.join(', ') || 'none online'}`);
+          recorded.routedTo = await forwardWebhook(rawBody, { legacy: signature, v2: signatureV2 }, payload);
+          console.log(`[Gateway] Event ${payload.eventType || 'unknown'} routed to: ${recorded.routedTo.join(', ') || 'none online'}`);
         }
       });
       return;
