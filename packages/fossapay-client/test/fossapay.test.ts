@@ -49,11 +49,22 @@ describe('1. Envelope Unwrapping & Error Handling', () => {
     } as any);
 
     const client = new FossaPayClient({ apiKey: 'fk_test_123', mode: 'live', fetchFn: mockFetch });
-    await expect(client.transfers.bankEnquiry('123', '999992')).rejects.toThrow(FossaPayError);
-    await expect(client.transfers.bankEnquiry('123', '999992')).rejects.toMatchObject({
+    await expect(client.transfers.bankEnquiry('0123456789', '999992')).rejects.toThrow(FossaPayError);
+    await expect(client.transfers.bankEnquiry('0123456789', '999992')).rejects.toMatchObject({
       statusCode: 400,
       message: 'Invalid account number length',
     });
+  });
+
+  it('rejects a non-10-digit account number client-side before any network call', async () => {
+    let called = false;
+    const mockFetch = async () => {
+      called = true;
+      return {} as any;
+    };
+    const client = new FossaPayClient({ apiKey: 'fk_test_123', mode: 'live', fetchFn: mockFetch });
+    await expect(client.transfers.bankEnquiry('123', '999992')).rejects.toMatchObject({ statusCode: 400 });
+    expect(called).toBe(false);
   });
 
   it('throws when JSON parsing fails', async () => {

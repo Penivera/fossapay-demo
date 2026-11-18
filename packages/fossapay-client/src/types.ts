@@ -3,10 +3,16 @@
  * Adheres strictly to ARCHITECTURE.md and product specifications.
  */
 
+/**
+ * Standard FossaPay envelope. Note that `status` is the string 'success' | 'error' on some
+ * endpoints and a boolean on others (banks, enquiry, fees); `success` is used by a few reads.
+ * Some endpoints (e.g. POST /kyc/verifications) return the payload with no envelope at all.
+ */
 export interface FossaPayResponse<T> {
-  status: 'success' | 'error';
-  statusCode: number;
-  message: string;
+  status?: 'success' | 'error' | boolean;
+  success?: boolean;
+  statusCode?: number;
+  message?: string;
   data: T;
 }
 
@@ -41,8 +47,17 @@ export interface CreateCustomerRequest {
   email?: string;
   phoneNumber?: string;
   firstName?: string;
+  middleName?: string;
   lastName?: string;
-  metadata?: Record<string, unknown>; // UNVERIFIED
+  /** ISO date (YYYY-MM-DD). Required by the live API. */
+  dateOfBirth?: string;
+  /** Required by the live API. */
+  address?: string;
+  /** Required by the live API. */
+  city?: string;
+  /** Required by the live API. */
+  country?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CustomerRecord {
@@ -58,7 +73,11 @@ export interface CustomerRecord {
 export interface CreateFiatWalletRequest {
   customerId?: string;
   currency?: string;
-  accountType?: 'permanent' | 'dedicated'; // UNVERIFIED
+  accountType?: 'permanent' | 'dedicated';
+  /** Live API: display name of the wallet (defaults to `Wallet <customerId>`). */
+  walletName?: string;
+  /** Live API: your unique reference for the wallet (defaults to `wallet_<customerId>`). */
+  walletReference?: string;
 }
 
 export interface FiatWalletRecord {
@@ -108,7 +127,9 @@ export interface TransferFiatRequest {
   destinationWalletId: string;
   amount: string | number;
   currency?: string;
-  narration?: string; // UNVERIFIED
+  narration?: string;
+  /** Live API: unique transfer reference (generated when omitted). */
+  reference?: string;
 }
 
 export interface TransferFiatRecord {
@@ -123,14 +144,23 @@ export interface TransferFiatRecord {
 }
 
 export interface CreateCheckoutRequest {
+  /** Whole NGN. The live API rejects fractional amounts. */
   amount: string | number;
   currency?: string;
+  /** Mock/demo bookkeeping only; never sent to the live API. */
   customerId?: string;
+  /** Live API: required, 1-100 chars of [A-Za-z0-9._:-]. Derived from the idempotency key when omitted. */
   reference?: string;
   feeBearer?: 'customer' | 'merchant' | 'buyer';
+  /** Sent live as `metadata.description` (the checkout schema has no top-level description). */
   description?: string;
+  /** Mock only. Live checkouts always expire after 30 minutes. */
   expiresInMinutes?: number;
-  metadata?: Record<string, unknown>; // UNVERIFIED
+  /** Optional customer contact details (live API `customer`). */
+  customer?: { name?: string; email?: string; phoneNumber?: string };
+  /** Optional transaction split code (`SPL_` + 16 hex). */
+  splitCode?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CheckoutRecord {
@@ -141,13 +171,21 @@ export interface CheckoutRecord {
   amountPayable: string;
   feeBearer: 'customer' | 'merchant' | 'buyer';
   currency: string;
-  status: 'pending' | 'completed' | 'expired' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'expired' | 'failed' | 'reversed';
   accountNumber: string;
   bankName: string;
-  bankCode: string;
+  bankCode?: string;
   accountName: string;
   expiresAt: string;
   createdAt: string;
+  settlementAmount?: string;
+  account?: {
+    type?: string;
+    bankName?: string;
+    accountName?: string;
+    accountNumber?: string;
+    expiresAt?: string;
+  };
   metadata?: Record<string, unknown>; // UNVERIFIED
 }
 
@@ -155,18 +193,29 @@ export interface CreatePayoutRequest {
   accountNumber: string;
   bankCode: string;
   accountName: string;
+  /** Looked up from the supported-bank list by `bankCode` when omitted (live mode). */
+  bankName?: string;
+  /** Whole NGN. The live API rejects fractional amounts. */
   amount: string | number;
   narration?: string;
+  /** Live API: required, unique per merchant. Derived from the idempotency key when omitted. */
   reference?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PayoutRecord {
   id: string;
   reference: string;
+  /** `processing` is NON-terminal: wait for the payout.completed/failed/reversed webhook. */
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'reversed';
   amount: string;
   fee: string;
   amountPayable?: string;
+  /** Live API: total debited from the master wallet (amount + fee). */
+  totalDebited?: string;
+  route?: 'same_business' | 'fossapay_cross_business' | 'external_bank';
+  transactionId?: string | null;
+  providerReference?: string | null;
   recipient: {
     accountNumber: string;
     accountName: string;
@@ -176,7 +225,7 @@ export interface PayoutRecord {
   narration?: string;
   createdAt: string;
   updatedAt?: string;
-  sessionId?: string; // NIBSS session ID
+  sessionId?: string; // NIBSS session ID (mock); live exposes providerReference
 }
 
 export interface KycVerificationRequest {
