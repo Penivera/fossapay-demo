@@ -51,3 +51,24 @@
 - [x] Root `README.md` and per-demo `README.md` (run instructions, env vars, mock behavior, live flip instructions)
 - [x] Mobile responsive layout review, loading/error states, empty states
 - [x] Final Gate: Clean clone install, build, test, and test:e2e all pass
+
+## Phase 7: UI Simplification & Contrast Reduction
+- [x] Standardized all demo themes on soft dark `#0d1117`, soft card surfaces (`#161b22`, `border-slate-800`), and subdued text
+- [x] Removed neon glow pulses, mesh gradients, noisy scanline/dot textures, and redundant marketing cards
+- [x] Streamlined Flagship NEAR Off-Ramp terminal, navbar, and receipt
+- [x] Streamlined SafeDeal Escrow deal creation, shared links, and admin mediation portal
+- [x] Streamlined SquadPay Split Bill room creation, live room view, and checkout modal
+- [x] Streamlined AjoSphere Savings club dashboard, join flow, and timeline
+- [x] Streamlined Webhook Gateway inspector on port 8001
+- [x] All typechecks, builds, unit tests, and E2E suites passing cleanly
+
+
+## Phase 8: Live-Mode Audit
+- [x] Live client aligned to the FossaPay OpenAPI (endpoints, field names, whole-naira amounts, dedup banks), 23 contract tests
+- [x] Webhooks accept `x-fossapay-signature-v2` and `x-fossapay-signature`; no hardcoded secrets; fail closed in live mode
+
+## Phase 9: UI Redesign and Live-Mode Hygiene
+- [x] `@fossapay/ui` design system; all demos and the inspector re-skinned (light, high-contrast, viewport-filling)
+- [x] No sample data or simulate controls in live mode (UI hidden and endpoints return 403)
+- [x] Off-ramp refuses live quotes/payouts until a verified deposit leg exists
+- [x] Gateway locked to local-only except the signed webhook route; XSS fixed

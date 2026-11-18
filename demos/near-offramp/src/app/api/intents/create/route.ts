@@ -30,9 +30,9 @@ export async function POST(req: NextRequest) {
       exchangeRateNgn: String(exchangeRateNgn || '1595.00'),
       recipient: {
         accountNumber: recipient.accountNumber,
-        accountName: recipient.accountName || 'OLUWASEUN CHUKWUDI ADENIYI',
+        accountName: recipient.accountName || 'BENEFICIARY',
         bankCode: recipient.bankCode,
-        bankName: recipient.bankName || 'OPay Digital Services',
+        bankName: recipient.bankName || recipient.bankCode,
       },
     });
 

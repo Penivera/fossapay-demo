@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AppShell } from '@fossapay/ui';
 
 export const metadata: Metadata = {
-  title: 'AjoSphere | Digital Rotating Savings & Credit Club',
-  description: 'Automated Nigerian Esusu/Ajo powered by FossaPay Dedicated Accounts, KYC, and Payout APIs',
+  title: 'AjoSphere | Digital savings circles',
+  description: 'Automated Ajo/Esusu savings clubs with verified members and dedicated accounts, powered by FossaPay',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const dynamic = 'force-dynamic';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const mode = process.env.FOSSAPAY_MODE === 'live' ? 'live' : 'mock';
   return (
     <html lang="en">
-      <body className="antialiased bg-slate-950 text-slate-100 min-h-screen">
-        {children}
+      <body>
+        <AppShell name="AjoSphere" mark="AS" mode={mode} nav={[{ href: '/', label: 'Clubs' }]}>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

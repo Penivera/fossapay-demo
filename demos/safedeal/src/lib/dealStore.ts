@@ -394,6 +394,8 @@ class SafeDealStore {
         destinationWalletId: deal.seller.walletId,
         amount: deal.price,
         narration: `SafeDeal ${deal.id} internal release`,
+        // Stable reference so a retried release can never be mistaken for a new transfer
+        reference: `safedeal_release_xfer_${deal.id}`,
       });
     }
 

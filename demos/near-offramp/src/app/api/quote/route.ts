@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isLiveMode } from '@fossapay/client';
 import { defaultSolver } from '../../../lib/solver';
 
+const LIVE_SOLVER_MESSAGE =
+  'Live cross-chain routing (NEAR Intents) is not connected in this build, so quotes are unavailable in live mode.';
+
 export async function POST(req: NextRequest) {
+  // The solver is a simulation. Never present fabricated quotes or deposit addresses as real.
+  if (isLiveMode()) {
+    return NextResponse.json({ status: 'error', message: LIVE_SOLVER_MESSAGE }, { status: 503 });
+  }
   try {
     const body = await req.json();
     const { originAsset, amountIn } = body;

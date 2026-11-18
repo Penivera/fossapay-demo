@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyFossaPayWebhook } from '@fossapay/client';
+import { verifyFossaPayWebhookRequest, resolveWebhookSecret } from '@fossapay/client';
 import { intentStore } from '../../../lib/intentStore';
 
 // In-memory set for deduplicating webhook events
@@ -8,8 +8,11 @@ const processedEvents = new Set<string>();
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get('x-fossapay-signature');
-    const secret = process.env.FOSSAPAY_WEBHOOK_SECRET || 'test_webhook_secret_mock_12345';
+    const secret = resolveWebhookSecret();
+    if (!secret) {
+      // Live mode without a configured secret: fail closed rather than trust a public default.
+      return NextResponse.json({ status: 'error', message: 'Webhook secret not configured' }, { status: 500 });
+    }
 
     let envelope: any;
     try {
@@ -19,7 +22,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Cryptographic signature check over JSON.stringify(body.data)
-    const isValid = verifyFossaPayWebhook(envelope, signature, secret);
+    // Accepts x-fossapay-signature-v2 (raw body HMAC) or x-fossapay-signature (HMAC over JSON.stringify(data))
+    const { valid: isValid } = verifyFossaPayWebhookRequest(rawBody, req.headers, secret);
     if (!isValid) {
       return NextResponse.json({ status: 'error', message: 'Invalid signature' }, { status: 401 });
     }
@@ -36,7 +40,12 @@ export async function POST(req: NextRequest) {
     // Asynchronously dispatch domain task
     if (eventType === 'payout.completed' && data) {
       setTimeout(() => {
-        intentStore.handlePayoutCompletedWebhook(data.payoutId, data.reference, data.sessionId);
+        // Live payloads expose the provider/NIBSS reference as providerReference (mock: sessionId)
+        intentStore.handlePayoutCompletedWebhook(data.payoutId, data.reference, data.sessionId ?? data.providerReference);
+      }, 0);
+    } else if ((eventType === 'payout.failed' || eventType === 'payout.reversed') && data) {
+      setTimeout(() => {
+        intentStore.handlePayoutFailedWebhook(data.payoutId, data.reference, eventType);
       }, 0);
     }
 

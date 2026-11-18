@@ -267,6 +267,27 @@ class IntentStore {
     }
   }
 
+  /**
+   * payout.failed / payout.reversed: the beneficiary was NOT paid. Per FossaPay docs, never auto-create a
+   * replacement payout; surface the failure so an operator/user decides (retry reuses the original key).
+   */
+  handlePayoutFailedWebhook(payoutId: string, reference: string, eventType: string): boolean {
+    for (const session of this.sessions.values()) {
+      if (session.payoutId === payoutId || session.payoutReference === reference) {
+        const reversed = eventType === 'payout.reversed';
+        session.status = 'payout_failed';
+        session.failureReason = reversed
+          ? 'Payout reversed by FossaPay; funds returned to the master wallet'
+          : 'Payout failed at FossaPay; contact support if funds remain reserved';
+        session.steps[2].status = 'error';
+        session.steps[2].detail = session.failureReason;
+        this.notify(session);
+        return true;
+      }
+    }
+    return false;
+  }
+
   handlePayoutCompletedWebhook(payoutId: string, reference: string, sessionId?: string): boolean {
     for (const session of this.sessions.values()) {
       if (session.payoutId === payoutId || session.payoutReference === reference) {

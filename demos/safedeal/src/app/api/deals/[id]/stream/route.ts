@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { safeDealStore } from '../../../../../lib/dealStore';
 
 export const dynamic = 'force-dynamic';
+// SSE: keep the Vercel function open as long as the plan allows (Hobby+Fluid max 300s). EventSource auto-reconnects.
+export const maxDuration = 300;
 
 export async function GET(
   _req: NextRequest,

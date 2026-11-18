@@ -18,7 +18,9 @@
     "dev:offramp": "npm run dev --workspace=demos/near-offramp",
     "dev:safedeal": "npm run dev --workspace=demos/safedeal",
     "dev:squadpay": "npm run dev --workspace=demos/squadpay",
-    "dev:ajosphere": "npm run dev --workspace=demos/ajosphere"
+    "dev:ajosphere": "npm run dev --workspace=demos/ajosphere",
+    "dev:gateway": "npm run dev --workspace=packages/webhook-gateway",
+    "gateway": "npm run start --workspace=packages/webhook-gateway"
   },
   "devDependencies": {
     "eslint": "^10.15.0",

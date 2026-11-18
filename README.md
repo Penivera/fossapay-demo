@@ -11,12 +11,16 @@ Rather than mirroring internal administrative dashboards, these applications dem
 
 ---
 
+> **Live mode:** forms start blank, simulate controls are hidden (and their endpoints return 403), and the NairaBridge off-ramp declines quotes/payouts because its NEAR Intents deposit leg is still simulated. Set `FOSSAPAY_MODE=live` plus `FOSSAPAY_API_KEY` and `FOSSAPAY_WEBHOOK_SECRET`.
+
 ## 🏗️ Monorepo Architecture
 
 ```text
 fossapay-demo/
 ├── packages/
-│   └── fossapay-client/     # Shared typed SDK, WebhookVerifier, MockLedger, Money math
+│   ├── fossapay-client/     # Shared typed SDK, WebhookVerifier, MockLedger, Money math
+│   ├── ui/                  # @fossapay/ui design system (tokens, Tailwind preset, components)
+│   └── webhook-gateway/     # Local webhook ingestion + inspector (port 8001)
 ├── demos/
 │   ├── near-offramp/        # Flagship NEAR Intents Off-Ramp (Port 3000)
 │   ├── safedeal/            # Social Commerce Escrow (Port 3001)
@@ -58,7 +62,25 @@ npm run dev:squadpay
 
 # AjoSphere Rotating Savings (http://localhost:3003)
 npm run dev:ajosphere
+
+# Webhook Ingestion Gateway & Live Inspector (http://localhost:8001)
+npm run gateway
 ```
+
+### 🌐 Cloudflare Tunnel & Live Webhooks
+FossaPay delivers live webhook notifications to `https://fossapay-demo.reachapp.xyz/platforms/webhook`. The local Cloudflare tunnel maps this public endpoint to port `8001`:
+* **Gateway Listener:** `http://localhost:8001/platforms/webhook`
+* **HMAC Verification:** Validates `x-fossapay-signature-v2` (raw-body HMAC) or `x-fossapay-signature` (HMAC over `data`) using `FOSSAPAY_WEBHOOK_SECRET`; invalid deliveries get `401` and are not forwarded
+* **Multi-Demo Routing:** Asynchronously forwards verified events to active demo apps (`localhost:3000`, `3001`, `3002`, `3003`)
+* **Live Inspector Dashboard:** Open [http://localhost:8001](http://localhost:8001) to view real-time inbound deliveries and trigger test events
+
+
+### Deploying to Vercel
+Each demo is its own Next.js app, so create **one Vercel project per demo** and set its *Root Directory* to `demos/<name>`
+(`near-offramp`, `safedeal`, `squadpay`, `ajosphere`). Each folder ships a `vercel.json` that installs the workspace from the repo root and builds `@fossapay/client` first. Leave "Include source files outside of the Root Directory" enabled.
+
+> [!NOTE]
+> Vercel is fine for **mock-mode showcase demos**, with a caveat: all state (deals, rooms, clubs, intents, the mock ledger) lives in per-instance memory, and timers/SSE are tied to a function instance. A request that lands on a different or cold instance will not find earlier state ("not found"). Treat the deployment as a single-visitor demo. A real deployment needs a shared store (Redis/Postgres) and a queue/cron for timers. The `webhook-gateway` is a long-running local server and is **not** deployable to Vercel; point FossaPay straight at a demo's `/api/webhook` instead.
 
 ### Build, Typecheck, & Tests
 ```bash
@@ -96,7 +118,13 @@ To switch any demo or the shared client to live FossaPay infrastructure:
    ```
 2. In live mode, requests route to `https://api-production.fossapay.com/api/v1` with header `x-api-key: $FOSSAPAY_API_KEY`.
 > [!WARNING]
-> Live mode has been implemented against the FossaPay API specification but remains **untested** in this repository because live production API keys and funding credentials were not provided.
+> FossaPay is **production-only** (no sandbox): live mode moves real money. The live transport is verified against the published OpenAPI spec by contract tests, and read-only endpoints (banks, fee, master wallet) were confirmed against production. Money-moving calls (checkouts, payouts, KYC, transfers) have **not** been exercised against production.
+>
+> Known gaps before using live mode with the demos (see DECISIONS.md, Phase 8):
+> - Checkout/payout amounts must be **whole naira**; SquadPay itemized shares with fractional kobo are rejected.
+> - `customers.create` needs real `dateOfBirth`, `address`, `city`, `country`, `email`, `phone`; the demos do not collect them yet.
+> - Payouts return `processing` and complete via `payout.completed`; only the Off-Ramp reacts to `payout.failed`/`reversed`. The other demos mark payouts settled on the create response.
+> - Each BVN/NIN lookup is billed (NGN 70 / NGN 120).
 
 ### 3. Webhook Signature Verification
 Every webhook endpoint verifies the `x-fossapay-signature` header:

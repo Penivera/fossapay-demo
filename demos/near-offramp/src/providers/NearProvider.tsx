@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { NearConnector } from '@hot-labs/near-connect';
+import { useMode } from '@fossapay/ui';
 
 interface NearContextType {
   accountId: string | null;
@@ -27,6 +28,7 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [connector, setConnector] = useState<NearConnector | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [walletName, setWalletName] = useState<string | null>(null);
+  const { isLive } = useMode();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -55,6 +57,10 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const connect = useCallback(async (mode?: 'fastauth' | 'manifest' | 'demo') => {
+    // Fabricated identities exist only in the sandbox
+    if (isLive && (mode === 'demo' || mode === 'fastauth')) {
+      throw new Error('Connect a real NEAR wallet in live mode.');
+    }
     if (mode === 'demo') {
       setAccountId('alice.near');
       setWalletName('DEMO WALLET');
@@ -80,7 +86,7 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Connector failed:', err);
       }
     }
-  }, [connector]);
+  }, [connector, isLive]);
 
   const disconnect = useCallback(async () => {
     if (connector) {
@@ -122,14 +128,16 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             return (res as any)?.transaction?.hash || `0x4f8a91bc72e${Date.now().toString(16)}9c2e`;
           }
-        } catch {
-          // fallback
+        } catch (err) {
+          if (isLive) throw err;
+          // sandbox: fall through to a simulated hash
         }
       }
 
+      if (isLive) throw new Error('No wallet available to sign the deposit transaction.');
       return `0x4f8a91bc72e${Math.random().toString(16).substring(2, 8)}9c2e`;
     },
-    [connector]
+    [connector, isLive]
   );
 
   return (

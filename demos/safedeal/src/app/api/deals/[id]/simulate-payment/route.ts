@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeDealStore } from '../../../../../lib/dealStore';
-import { defaultMockLedger } from '@fossapay/client';
+import { defaultMockLedger, denyInLive } from '@fossapay/client';
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = denyInLive();
+  if (denied) return denied;
   try {
     const { id } = await params;
     const deal = safeDealStore.getDeal(id);

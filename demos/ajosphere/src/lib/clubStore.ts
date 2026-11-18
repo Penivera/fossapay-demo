@@ -124,7 +124,8 @@ export class AjoClubStore {
   private listeners = new Map<string, Set<(club: AjoClub) => void>>();
 
   constructor() {
-    this.seedDemoClub();
+    // Sample data exists only in the offline sandbox. Live mode starts empty.
+    if (process.env.FOSSAPAY_MODE !== 'live') this.seedDemoClub();
   }
 
   private seedDemoClub(): void {
@@ -248,7 +249,7 @@ export class AjoClubStore {
           id: `aud_${Date.now()}_init`,
           timestamp: new Date().toISOString(),
           type: 'CLUB_CREATED',
-          description: `Club "Techies Ajo Club" created with ₦${formatNGN(contribution)} weekly contribution across ${totalRounds} rounds.`,
+          description: `Club "Techies Ajo Club" created with ${formatNGN(contribution)} weekly contribution across ${totalRounds} rounds.`,
         },
       ],
       reminderLog: [],
@@ -300,7 +301,7 @@ export class AjoClubStore {
           id: `aud_${Date.now()}_create`,
           timestamp: new Date().toISOString(),
           type: 'CLUB_CREATED',
-          description: `Club "${params.name}" formed with ₦${formatNGN(contributionAmount)} contribution across ${totalRounds} rotation rounds.`,
+          description: `Club "${params.name}" formed with ${formatNGN(contributionAmount)} contribution across ${totalRounds} rotation rounds.`,
         },
       ],
       reminderLog: [],
@@ -472,7 +473,7 @@ export class AjoClubStore {
       id: `aud_${Date.now()}_dep`,
       timestamp: new Date().toISOString(),
       type: 'CONTRIBUTION_RECEIVED',
-      description: `₦${formatNGN(amount)} deposited by ${member.name} for Round #${currentRound.roundNumber}.`,
+      description: `${formatNGN(amount)} deposited by ${member.name} for Round #${currentRound.roundNumber}.`,
       meta: {
         memberId: member.id,
         roundNumber: currentRound.roundNumber,
@@ -491,7 +492,7 @@ export class AjoClubStore {
         id: `aud_${Date.now()}_pot_full`,
         timestamp: new Date().toISOString(),
         type: 'CONTRIBUTION_RECEIVED',
-        description: `Round #${currentRound.roundNumber} pot is complete at ₦${formatNGN(currentRound.collectedPotAmount)}! Ready for disbursal.`,
+        description: `Round #${currentRound.roundNumber} pot is complete at ${formatNGN(currentRound.collectedPotAmount)}! Ready for disbursal.`,
       });
     }
 
@@ -534,7 +535,7 @@ export class AjoClubStore {
             phone: unpaid.phone,
             roundNumber: currentRound.roundNumber,
             channel: 'SMS',
-            message: `URGENT: Your Round ${currentRound.roundNumber} contribution of ₦${formatNGN(
+            message: `URGENT: Your Round ${currentRound.roundNumber} contribution of ${formatNGN(
               club.contributionAmount
             )} is late! Please deposit to ${unpaid.dedicatedAccountNumber} (${unpaid.dedicatedBankName}) to avoid defaulting.`,
           };
@@ -545,7 +546,7 @@ export class AjoClubStore {
           id: `aud_${Date.now()}_deficit`,
           timestamp: new Date().toISOString(),
           type: 'DEFICIT_FLAGGED',
-          description: `Disbursal held! Deficit of ₦${formatNGN(
+          description: `Disbursal held! Deficit of ${formatNGN(
             fromKobo(targetKobo - collectedKobo)
           )} detected on Friday. Uncredited: ${unpaidMembers.map((m) => m.name).join(', ')}.`,
           meta: {
@@ -608,7 +609,7 @@ export class AjoClubStore {
         id: `aud_${Date.now()}_disburse`,
         timestamp: new Date().toISOString(),
         type: 'POT_DISBURSED',
-        description: `₦${formatNGN(amountToDisburse)} disbursed to recipient ${recipient.name} (${recipient.payoutBankName} - ${recipient.payoutAccountNumber}). Ref: ${payout.reference}.`,
+        description: `${formatNGN(amountToDisburse)} disbursed to recipient ${recipient.name} (${recipient.payoutBankName} - ${recipient.payoutAccountNumber}). Ref: ${payout.reference}.`,
         meta: {
           payoutId: payout.id,
           idempotencyKey,
@@ -626,7 +627,7 @@ export class AjoClubStore {
         phone: recipient.phone,
         roundNumber: round.roundNumber,
         channel: 'SMS',
-        message: `Congratulations! Your ₦${formatNGN(amountToDisburse)} Ajo pot for Round ${round.roundNumber} has been paid to your ${recipient.payoutBankName} account.`,
+        message: `Congratulations! Your ${formatNGN(amountToDisburse)} Ajo pot for Round ${round.roundNumber} has been paid to your ${recipient.payoutBankName} account.`,
       });
 
       club.updatedAt = new Date().toISOString();
@@ -670,7 +671,7 @@ export class AjoClubStore {
         id: `aud_${Date.now()}_partial`,
         timestamp: new Date().toISOString(),
         type: 'ADMIN_OVERRIDE',
-        description: `Admin authorized PARTIAL disbursal of ₦${formatNGN(currentRound.collectedPotAmount)}. Round marked DISBURSED_PARTIAL.`,
+        description: `Admin authorized PARTIAL disbursal of ${formatNGN(currentRound.collectedPotAmount)}. Round marked DISBURSED_PARTIAL.`,
       });
     }
 

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@fossapay/client": "*",
+    "@fossapay/ui": "*",
     "bignumber.js": "^9.1.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",

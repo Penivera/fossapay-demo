@@ -112,8 +112,44 @@ This document records architectural, functional, and engineering decisions made 
 - **Why:** Delivers a single turnkey command for comprehensive verification while giving developers direct individual dev shortcuts.
 - **Revisit if:** Sub-projects are sharded into separate independent CI pipelines.
 
+## [Phase 6+] Cloudflare Tunnel Webhook Gateway & Production API Verification
+- **Question:** How should incoming webhooks from FossaPay's single registered webhook URL (`https://fossapay-demo.reachapp.xyz/platforms/webhook`) forwarded via Cloudflare tunnel to `localhost:8001` be ingested and routed to local demo applications?
+- **Decision:** Created `@fossapay/webhook-gateway` listening on port `8001`. It verifies the `x-fossapay-signature` using `FOSSAPAY_WEBHOOK_SECRET` from the environment (no secret is ever hardcoded; with none set every delivery is rejected), responds `200 OK` within milliseconds, and forwards verified events to running demo ports (3000, 3001, 3002, 3003) while offering an in-browser Webhook Inspector at `http://localhost:8001`.
+- **Why:** Cloudflare tunnel binds a single external port (8001) for all merchant webhook deliveries; the gateway provides unified signature verification, logging, and multi-demo event fanout.
+- **Revisit if:** FossaPay supports per-application webhook endpoint registrations.
+
+## [UI Simplification] Reduced Contrast & Minimalist Interface Across Demos
+- **Question:** How to simplify the UI, reduce contrast, remove extra components, and keep it soft across all demos?
+- **Decision:**
+  - Standardized on a consistent soft dark background (`#0d1117`) and low-contrast card surfaces (`#161b22`, `border-slate-800`, `text-slate-300`).
+  - Removed decorative marketing grids, heavy neon glow drop-shadows, scanlines, and mesh gradients across all demos (`demos/near-offramp`, `demos/safedeal`, `demos/squadpay`, `demos/ajosphere`, and `packages/webhook-gateway`).
+  - Retained all functional capabilities, state machines, SSE real-time streaming, idempotent operations, and verification tests while keeping visual elements focused, legible, and calm.
+- **Why:** Directly addresses user request for minimal, soft, and low-contrast interfaces while preserving 100% of the underlying business logic and test coverage.
+- **Revisit if:** High-contrast accessibility modes or brand-specific bright themes are explicitly requested.
 
 
 
 
 
+
+
+
+
+
+## Phase 8: Live-Mode Audit Against the Official FossaPay Docs/OpenAPI
+- **Finding:** The Phase 1 live transport had been written from the architecture spec, not the published contract. Verified against `https://docs.fossapay.com/api-reference/openapi.json` and `@fossapay/node@0.1.2`, and by read-only calls to the production API (`GET /transfers/banks` -> 404; `GET /transfers/fiat/banks` -> 200 with `{bankname, bankcode}`).
+- **Decision:** Kept the in-house `FossaPayClient` facade (the mock-first design depends on it) instead of adding `@fossapay/node`, because that SDK has no checkouts or KYC resource, and mapped every live call to the documented endpoint, field names and response shapes. Contract tests in `packages/fossapay-client/test/live-contract.test.ts` pin them. Replace the live branch with the SDK later if desired; the facade signatures would not change.
+- **Decision:** The live API takes **whole-naira integers** for checkout and payout amounts. The client now throws on fractional amounts instead of silently rounding money.
+- **Decision:** Webhooks accept both documented schemes: `x-fossapay-signature-v2` (HMAC over the raw body, what `@fossapay/node` `constructEvent` does) and `x-fossapay-signature` (HMAC over `JSON.stringify(data)`). Docs conflict on which header is delivered, so both are verified, timing-safe.
+- **Decision:** No hardcoded webhook secret anywhere. In live mode a missing `FOSSAPAY_WEBHOOK_SECRET` fails closed (HTTP 500); the public mock secret is only usable in mock mode. The gateway now returns 401 and does not forward on a bad signature.
+- **Security note:** The production webhook secret had been hardcoded in the (uncommitted) `webhook-gateway/src/server.ts`, its test, and this file. It was never committed to git and is now removed from the working tree, but rotate it in the FossaPay dashboard if any of those files were shared or backed up.
+
+
+## Phase 9: Shared Design System and Live-Mode Hygiene
+- **Decision:** New workspace `packages/ui` (`@fossapay/ui`): CSS-variable tokens, a Tailwind preset, and React primitives (Button, Card, Field/Input/Select, Dialog, Steps, Badge, Notice, `BankAccountPicker`, `AppShell`, `Stage`). All four demos and the gateway inspector use it. Direction: Cloudflare-dashboard feel: warm light canvas, white surfaces, hairline borders, one orange accent, fluid `clamp()` type, AA contrast (muted text 5:1, brand-on-white 5:1). The old dark theme and monospace-everywhere styling are removed. Landing pages use a two-column `Stage` that fills the viewport and centres vertically instead of hugging the top.
+- **Decision:** Live mode shows **no sample data**. Forms start blank (pre-fill is gated on `useMode().isMock`); the seeded AjoSphere club, the `alice.near` sample wallet, the simulated passkey sign-in and the fabricated transaction hash fallback exist only in the sandbox.
+- **Decision:** Simulation endpoints (`simulate-payment`, `simulate-delivery`, `simulate-expiry`, `simulate-deposit`, `advance-time`, `advance-round`) return 403 in live mode via `denyInLive()`, and their UI buttons are hidden. This is enforced server-side, not just in the UI.
+- **Decision (safety):** The NEAR Intents solver is a simulation. In live mode `/api/quote` returns 503 and `/api/intents/[id]/execute` returns 501, because executing would pay real naira from the FossaPay master wallet against a crypto deposit that cannot be verified. Wiring a real, verified deposit leg is required before the off-ramp can run live.
+- **Decision (safety):** Deleted the unused `/api/payout` route in near-offramp: it let any unauthenticated caller trigger a real payout with the server API key.
+- **Decision (safety):** The webhook gateway is exposed through a tunnel as a whole port. Every route except the HMAC-authenticated `POST /platforms/webhook` is now restricted to genuinely local requests (loopback and no proxy headers), `/api/test-trigger` is disabled in live mode, and webhook payloads are HTML-escaped in the inspector (they were previously interpolated raw: stored XSS).
+- **Bug fixes found via the UI:** SquadPay's create form posted `participants` while the API requires `participantInputs`, so room creation over HTTP never worked (E2E tests call the store directly and missed it). The live bank directory repeats codes (e.g. `100042`), now deduped in the client. Fixed `NN20,000` double currency symbol in AjoSphere's activity log.
