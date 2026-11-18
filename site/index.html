@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FossaPay demos: real products built on FossaPay</title>
+<meta name="description" content="Four open-source demo products showing how to integrate FossaPay (collections, payouts, wallets, KYC, webhooks) into real-world Nigerian fintech apps.">
+<meta property="og:title" content="FossaPay demos">
+<meta property="og:description" content="Open-source demo products showing how to integrate FossaPay into real-world apps.">
+<meta property="og:image" content="images/nairabridge.png">
+<style>
+:root{--canvas:#fafaf9;--surface:#fff;--subtle:#f5f5f4;--line:#e7e5e4;--ink:#1c1917;--ink2:#44403c;--muted:#69635e;--brand:#b94f07;--brand-hover:#9a3f04;--accent:#f6821f;--soft:#fff4e8;--soft-ink:#7c2d03}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--canvas) radial-gradient(1200px 520px at 50% -10%,rgba(246,130,31,.11),transparent 70%) no-repeat;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+nav{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.8);backdrop-filter:blur(14px);border-bottom:1px solid rgba(231,229,228,.8)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;text-decoration:none;font-size:17px}
+.mark{width:32px;height:32px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:13px}
+nav ul{display:flex;gap:4px;list-style:none;margin:0;padding:0}
+nav ul a{display:block;padding:6px 12px;border-radius:8px;text-decoration:none;color:var(--ink2);font-size:14px;font-weight:500}
+nav ul a:hover{background:var(--subtle);color:var(--ink)}
+@media(max-width:640px){nav ul li:not(:last-child){display:none}}
+.btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 22px;border-radius:12px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid #d6d3d1;background:var(--surface);color:var(--ink);transition:.15s}
+.btn:hover{background:var(--subtle)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-hover)}
+.hero{padding:clamp(56px,9vw,120px) 0 56px;text-align:center}
+.pill{display:inline-flex;gap:8px;align-items:center;padding:4px 12px;border-radius:99px;background:var(--soft);color:var(--soft-ink);font-size:13px;font-weight:500;box-shadow:inset 0 0 0 1px rgba(246,130,31,.3)}
+h1{font-size:clamp(2.2rem,1.4rem + 3.4vw,4rem);line-height:1.06;letter-spacing:-.03em;margin:20px auto 0;max-width:15ch;font-weight:700}
+h1 span{color:var(--brand)}
+.lead{font-size:clamp(1.05rem,.95rem + .4vw,1.3rem);color:var(--ink2);max-width:46rem;margin:22px auto 0}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:32px}
+h2{font-size:clamp(1.6rem,1.2rem + 1.4vw,2.3rem);letter-spacing:-.02em;line-height:1.15;margin:0 0 10px}
+section{padding:56px 0}
+.sub{color:var(--ink2);max-width:44rem;margin:0 0 32px}
+.grid{display:grid;gap:20px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 1px 2px rgba(28,25,23,.04),0 10px 30px -14px rgba(28,25,23,.12);display:flex;flex-direction:column}
+.card img{width:100%;display:block;border-bottom:1px solid var(--line);aspect-ratio:16/10;object-fit:cover;object-position:top;background:var(--subtle)}
+.card .body{padding:22px 24px 24px;display:flex;flex-direction:column;gap:10px;flex:1}
+.card h3{margin:0;font-size:1.25rem;letter-spacing:-.01em}
+.card p{margin:0;color:var(--ink2)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12px;font-weight:500;padding:2px 10px;border-radius:99px;background:var(--subtle);color:var(--ink2);box-shadow:inset 0 0 0 1px var(--line)}
+.links{display:flex;gap:16px;flex-wrap:wrap;margin-top:auto;padding-top:8px;font-weight:600;font-size:15px}
+.links a{color:var(--brand);text-decoration:none}
+.links a:hover{text-decoration:underline;text-underline-offset:3px}
+.plain{padding:22px 24px}
+.plain h3{margin:0 0 6px;font-size:1.05rem}
+.plain p{margin:0;color:var(--ink2);font-size:15px}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.steps li{counter-increment:s;display:flex;gap:16px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.steps li:before{content:counter(s);flex:none;width:28px;height:28px;border-radius:99px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
+pre{margin:0;padding:20px 22px;border-radius:16px;background:#1c1917;color:#fafaf9;overflow:auto;font:13.5px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;background:var(--subtle);padding:1px 6px;border-radius:6px}
+pre code{background:none;padding:0}
+.cols{display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start}
+.diagram{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px;overflow:auto;white-space:pre;color:var(--ink2)}
+.note{background:var(--soft);border:1px solid rgba(246,130,31,.3);color:var(--soft-ink);border-radius:14px;padding:16px 20px;margin-top:20px}
+.docs a.card{text-decoration:none;color:inherit;transition:.15s}
+.docs a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+footer{border-top:1px solid var(--line);padding:36px 0 48px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;gap:20px;justify-content:space-between;flex-wrap:wrap}
+footer a{color:var(--ink2)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="#"><span class="mark">FP</span>FossaPay demos</a>
+  <ul>
+    <li><a href="#demos">Demos</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#start">Quick start</a></li>
+    <li><a href="#docs">Docs</a></li>
+    <li><a href="https://github.com/Penivera/fossapay-demo">GitHub</a></li>
+  </ul>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <span class="pill">Open source · MIT · TypeScript</span>
+  <h1>Real products, <span>built on FossaPay.</span></h1>
+  <p class="lead">Four working demo apps that show how to put FossaPay's collections, payouts, wallets, identity checks and webhooks into products people actually use, plus a guide that explains every integration pattern.</p>
+  <div class="cta">
+    <a class="btn primary" href="#demos">Explore the demos</a>
+    <a class="btn" href="https://github.com/Penivera/fossapay-demo/tree/main/docs/integration">Read the integration guide</a>
+    <a class="btn" href="https://github.com/Penivera/fossapay-demo">View on GitHub</a>
+  </div>
+</div></header>
+
+<section id="demos"><div class="wrap">
+  <h2>Four products, four patterns</h2>
+  <p class="sub">Each demo is a complete Next.js app that runs offline in sandbox mode, and maps onto the real FossaPay API in live mode. Open the source, or run it in under a minute.</p>
+  <div class="grid g2">
+    <article class="card">
+      <img src="images/nairabridge.png" alt="NairaBridge: sell crypto and receive naira" loading="lazy">
+      <div class="body">
+        <h3>NairaBridge</h3>
+        <p>A cross-chain off-ramp. Sell tokens from Arbitrum, Base, Ethereum, Solana or NEAR and receive naira in a Nigerian bank account.</p>
+        <div class="tags"><span class="tag">Payouts</span><span class="tag">Bank enquiry</span><span class="tag">Idempotent retry</span><span class="tag">SSE</span></div>
+        <div class="links"><a href="https://github.com/Penivera/fossapay-demo/tree/main/demos/near-offramp">Source</a><a href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/04-recipes.md#nairabridge-crypto-to-a-bank-account-payout-only">How it works</a></div>
+      </div>
+    </article>
+    <article class="card">
+      <img src="images/safedeal.png" alt="SafeDeal: escrow for social commerce" loading="lazy">
+      <div class="body">
+        <h3>SafeDeal</h3>
+        <p>Escrow for WhatsApp and Instagram sellers. The buyer's money is held until they confirm the item, with a dispute desk for the rest.</p>
+        <div class="tags"><span class="tag">Checkouts</span><span class="tag">Wallet transfers</span><span class="tag">Payouts</span><span class="tag">State machine</span></div>
+        <div class="links"><a href="https://github.com/Penivera/fossapay-demo/tree/main/demos/safedeal">Source</a><a href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/04-recipes.md#safedeal-escrow-for-social-sellers-checkout--wallets--payout">How it works</a></div>
+      </div>
+    </article>
+    <article class="card">
+      <img src="images/squadpay.png" alt="SquadPay: split a bill with friends" loading="lazy">
+      <div class="body">
+        <h3>SquadPay</h3>
+        <p>Split a group bill. Every friend pays their share into their own account, and the total lands in the host's bank in one payout.</p>
+        <div class="tags"><span class="tag">Many checkouts</span><span class="tag">Kobo-safe maths</span><span class="tag">Webhooks</span><span class="tag">Live board</span></div>
+        <div class="links"><a href="https://github.com/Penivera/fossapay-demo/tree/main/demos/squadpay">Source</a><a href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/04-recipes.md#squadpay-split-a-bill-many-checkouts-one-payout">How it works</a></div>
+      </div>
+    </article>
+    <article class="card">
+      <img src="images/ajosphere.png" alt="AjoSphere: a digital savings circle" loading="lazy">
+      <div class="body">
+        <h3>AjoSphere</h3>
+        <p>A digital Ajo / Esusu savings circle. Members are identity-verified, get dedicated deposit accounts, and take turns receiving the pot.</p>
+        <div class="tags"><span class="tag">BVN / NIN KYC</span><span class="tag">Dedicated accounts</span><span class="tag">Deposit webhooks</span><span class="tag">Scheduled payout</span></div>
+        <div class="links"><a href="https://github.com/Penivera/fossapay-demo/tree/main/demos/ajosphere">Source</a><a href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/04-recipes.md#ajosphere-rotating-savings-club-kyc--dedicated-accounts--scheduled-payout">How it works</a></div>
+      </div>
+    </article>
+  </div>
+  <div class="note"><strong>Running them yourself:</strong> the demos are not hosted. They are meant to be cloned and run locally (see <a href="#start">Quick start</a>), where sandbox mode needs no account, no key and no money.</div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>One client, two transports</h2>
+  <p class="sub">FossaPay is production-only: there is no sandbox, and a live key moves real money. So every demo talks to a shared client that can run against an in-memory ledger or the real API, with no change to your product code.</p>
+  <div class="cols">
+    <div class="diagram">your app code
+   |
+FossaPayClient
+   |-- mock --> in-memory ledger
+   |            offline, free, signs webhooks
+   '-- live --> api-production.fossapay.com</div>
+    <div class="grid">
+      <div class="card plain"><h3>Idempotency everywhere</h3><p>Keys derive from your own business IDs, so a retry after a crash can never pay twice.</p></div>
+      <div class="card plain"><h3>Signed webhooks, done right</h3><p>Both documented signature schemes, timing-safe comparison, de-duplication, and failure to a closed door when no secret is set.</p></div>
+      <div class="card plain"><h3>Money without floats</h3><p>Whole-naira requests, kobo-integer maths, and remainder-safe splitting.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="start"><div class="wrap">
+  <h2>Quick start</h2>
+  <p class="sub">Node.js 20+ is all you need.</p>
+  <div class="cols">
+    <pre><code>git clone https://github.com/Penivera/fossapay-demo.git
+cd fossapay-demo
+npm install
+npm run build --workspace=packages/fossapay-client
+
+npm run dev:safedeal     # http://localhost:3001
+npm run dev:squadpay     # http://localhost:3002
+npm run dev:ajosphere    # http://localhost:3003
+npm run dev:offramp      # http://localhost:3000</code></pre>
+    <ol class="steps">
+      <li><div><strong>Run in sandbox.</strong> No configuration. Click through a whole journey, including simulated payments and webhooks.</div></li>
+      <li><div><strong>Read the code.</strong> Each demo's store file is the integration, in one place.</div></li>
+      <li><div><strong>Go live carefully.</strong> Set <code>FOSSAPAY_MODE=live</code>, a key and a webhook secret. Forms go blank and simulators disappear. <a href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/06-going-live.md">Read the checklist first.</a></div></li>
+    </ol>
+  </div>
+</div></section>
+
+<section id="docs" class="docs"><div class="wrap">
+  <h2>The integration guide</h2>
+  <p class="sub">Written to be followed, not skimmed. Start at the top, or jump to what you need.</p>
+  <div class="grid g3">
+    <a class="card plain" href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/01-getting-started.md"><h3>1. Getting started</h3><p>Run it, sandbox vs live, environment variables.</p></a>
+    <a class="card plain" href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/02-api-patterns.md"><h3>2. API patterns</h3><p>Envelopes, idempotency, whole-naira amounts, checkouts, payouts, KYC.</p></a>
+    <a class="card plain" href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/03-webhooks.md"><h3>3. Webhooks</h3><p>Verify signatures, de-duplicate, reconcile, test locally.</p></a>
+    <a class="card plain" href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/04-recipes.md"><h3>4. Recipes</h3><p>How each demo maps a product idea to FossaPay calls.</p></a>
+    <a class="card plain" href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/05-testing.md"><h3>5. Testing</h3><p>The mock ledger, contract tests, and no-sandbox strategy.</p></a>
+    <a class="card plain" href="https://github.com/Penivera/fossapay-demo/blob/main/docs/integration/06-going-live.md"><h3>6. Going live</h3><p>What separates a demo from a product that holds money.</p></a>
+  </div>
+  <p class="sub" style="margin-top:28px">New to FossaPay itself? See the official <a href="https://docs.fossapay.com">API documentation</a>, the <a href="https://docs.fossapay.com/sdks/node">Node SDK</a> and the <a href="https://dashboard.fossapay.com/register">dashboard</a>.</p>
+</div></section>
+
+<footer><div class="wrap">
+  <span>MIT licensed. Unofficial community demos; not affiliated with FossaPay.</span>
+  <span><a href="https://github.com/Penivera/fossapay-demo">GitHub</a> · <a href="https://github.com/Penivera/fossapay-demo/blob/main/CONTRIBUTING.md">Contribute</a> · <a href="https://github.com/Penivera/fossapay-demo/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/Penivera/fossapay-demo/issues">Issues</a> · <a href="https://github.com/Penivera/fossapay-demo/blob/main/CHANGELOG.md">Changelog</a></span>
+</div></footer>
+</body>
+</html>

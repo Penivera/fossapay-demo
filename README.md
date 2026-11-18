@@ -1,158 +1,132 @@
-# FossaPay Showcase & Demo Monorepo
+<div align="center">
 
-Production-grade TypeScript monorepo demonstrating real-world fintech, social commerce, and Web3 applications powered by the [FossaPay](https://docs.fossapay.com/) banking and payments infrastructure.
+# FossaPay demos
 
-Rather than mirroring internal administrative dashboards, these applications demonstrate practical consumer and business workflows where FossaPay acts as an invisible banking engine:
+**Four open-source products that show how to integrate [FossaPay](https://docs.fossapay.com) into real-world apps.**
 
-1. **NEAR Intents Cross-Chain Off-Ramp (`demos/near-offramp`)** — Flagship terminal liquidating cross-chain crypto (Solana, Base, Arbitrum, Ethereum, NEAR) directly into Nigerian bank accounts via NEAR Intents and FossaPay Master Payouts.
-2. **SafeDeal Escrow (`demos/safedeal`)** — Trustless social commerce escrow for WhatsApp and Instagram merchants with 30-minute dynamic virtual accounts, zero-fee wallet transfers, automated inspection timers, and dispute mediation.
-3. **SquadPay Split Bill (`demos/squadpay`)** — Real-time group dining expense splitter with per-participant virtual checkout cards, live SSE status synchronization, remainder-safe kobo math, and single-payout pool settlement.
-4. **AjoSphere Savings Club (`demos/ajosphere`)** — Digital rotating savings and credit club (*Esusu/Ajo*) with official BVN/NIN identity verification, permanent Providus Bank dedicated virtual accounts, and automated Friday lump-sum disbursals with defaulter mitigation.
+Collections, payouts, wallets, identity checks and webhooks, taught through working code and a step-by-step guide.
 
----
+[![CI](https://github.com/Penivera/fossapay-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/Penivera/fossapay-demo/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-b94f07.svg)](LICENSE)
+![Node](https://img.shields.io/badge/node-%E2%89%A520-339933)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 
-> **Live mode:** forms start blank, simulate controls are hidden (and their endpoints return 403), and the NairaBridge off-ramp declines quotes/payouts because its NEAR Intents deposit leg is still simulated. Set `FOSSAPAY_MODE=live` plus `FOSSAPAY_API_KEY` and `FOSSAPAY_WEBHOOK_SECRET`.
+[**Landing page**](https://penivera.github.io/fossapay-demo/) · [**Integration guide**](docs/integration/README.md) · [Quick start](#quick-start) · [Contributing](CONTRIBUTING.md)
 
-## 🏗️ Monorepo Architecture
+</div>
 
-```text
-fossapay-demo/
-├── packages/
-│   ├── fossapay-client/     # Shared typed SDK, WebhookVerifier, MockLedger, Money math
-│   ├── ui/                  # @fossapay/ui design system (tokens, Tailwind preset, components)
-│   └── webhook-gateway/     # Local webhook ingestion + inspector (port 8001)
-├── demos/
-│   ├── near-offramp/        # Flagship NEAR Intents Off-Ramp (Port 3000)
-│   ├── safedeal/            # Social Commerce Escrow (Port 3001)
-│   ├── squadpay/            # Live Group Bill Splitter (Port 3002)
-│   └── ajosphere/           # Digital Rotating Savings Club (Port 3003)
-├── docs/                    # Architectural specifications and wireframe guides
-├── DECISIONS.md             # Running log of inferred engineering decisions
-└── PROGRESS.md              # Checklists and phase verification gates
-```
+> **Unofficial.** Community demos, not affiliated with FossaPay. **FossaPay is production-only (no sandbox):** a live key
+> moves real money. Everything here runs offline in sandbox mode by default.
 
----
+## The demos
 
-## ⚡ Quick Start
+| | Demo | What it shows | FossaPay features | Source |
+|---|---|---|---|---|
+| <img src="site/images/nairabridge.png" width="260" alt="NairaBridge"> | **NairaBridge**<br>Crypto to a Nigerian bank account | Cross-chain off-ramp with verified beneficiary, live progress, safe retry | Payouts, bank enquiry, idempotency | [`demos/near-offramp`](demos/near-offramp) |
+| <img src="site/images/safedeal.png" width="260" alt="SafeDeal"> | **SafeDeal**<br>Escrow for social commerce | Funds held until the buyer confirms; disputes and refunds | Checkouts, wallet transfers, payouts | [`demos/safedeal`](demos/safedeal) |
+| <img src="site/images/squadpay.png" width="260" alt="SquadPay"> | **SquadPay**<br>Split a bill with friends | Each friend pays their share; one payout to the host | Checkouts, webhooks, kobo-safe maths | [`demos/squadpay`](demos/squadpay) |
+| <img src="site/images/ajosphere.png" width="260" alt="AjoSphere"> | **AjoSphere**<br>Rotating savings club (Ajo/Esusu) | Verified members, dedicated accounts, turn-based payouts | BVN/NIN KYC, customers, wallets, deposits | [`demos/ajosphere`](demos/ajosphere) |
 
-### Prerequisites
-- Node.js `v20+` or `v24+`
-- npm `v10+` or `v11+`
+Plus [`packages/webhook-gateway`](packages/webhook-gateway), a local webhook receiver and inspector.
 
-### Installation
+## Quick start
+
+Requires Node.js 20+.
+
 ```bash
-# Clone and install dependencies
-git clone <repo-url> fossapay-demo
+git clone https://github.com/Penivera/fossapay-demo.git
 cd fossapay-demo
 npm install
+npm run build --workspace=packages/fossapay-client   # demos import the built client
+
+npm run dev:safedeal      # http://localhost:3001
+npm run dev:squadpay      # http://localhost:3002
+npm run dev:ajosphere     # http://localhost:3003
+npm run dev:offramp       # http://localhost:3000
+npm run gateway           # http://localhost:8001 (webhook inspector)
 ```
 
-### Launch Demos
-Each demo runs on its own dedicated port:
+No account, key or configuration is needed. Sandbox mode pre-fills sample data and shows buttons that simulate payments.
 
-```bash
-# Flagship: NEAR Intents Off-Ramp (http://localhost:3000)
-npm run dev:offramp
+## Learn the integration
 
-# SafeDeal Escrow (http://localhost:3001)
-npm run dev:safedeal
+Start with the [**integration guide**](docs/integration/README.md):
 
-# SquadPay Bill Splitter (http://localhost:3002)
-npm run dev:squadpay
+1. [Getting started](docs/integration/01-getting-started.md): sandbox vs live, environment variables
+2. [API patterns](docs/integration/02-api-patterns.md): envelopes, idempotency, whole-naira amounts, checkouts, payouts, KYC
+3. [Webhooks](docs/integration/03-webhooks.md): both signature schemes, de-duplication, reconciliation, tunnelling
+4. [Recipes](docs/integration/04-recipes.md): how each demo maps a product idea onto FossaPay calls
+5. [Testing](docs/integration/05-testing.md): the mock ledger, contract tests, no-sandbox strategy
+6. [Going live](docs/integration/06-going-live.md): what separates a demo from a product that holds money
 
-# AjoSphere Rotating Savings (http://localhost:3003)
-npm run dev:ajosphere
+A taste of the shared client:
 
-# Webhook Ingestion Gateway & Live Inspector (http://localhost:8001)
-npm run gateway
+```ts
+import { FossaPayClient } from '@fossapay/client';
+
+const fossa = new FossaPayClient();   // FOSSAPAY_MODE=mock (default) or live
+
+// Always verify the beneficiary, then pay with a key derived from YOUR business identity
+const who = await fossa.transfers.bankEnquiry('0123456789', '058');
+await fossa.payouts.createMasterPayout(
+  { accountNumber: '0123456789', bankCode: '058', accountName: who.accountName, amount: 5000, reference: 'PAYOUT-10025' },
+  'payout-order-10025'              // same key on retry, so it can never pay twice
+);
 ```
 
-### 🌐 Cloudflare Tunnel & Live Webhooks
-FossaPay delivers live webhook notifications to `https://fossapay-demo.reachapp.xyz/platforms/webhook`. The local Cloudflare tunnel maps this public endpoint to port `8001`:
-* **Gateway Listener:** `http://localhost:8001/platforms/webhook`
-* **HMAC Verification:** Validates `x-fossapay-signature-v2` (raw-body HMAC) or `x-fossapay-signature` (HMAC over `data`) using `FOSSAPAY_WEBHOOK_SECRET`; invalid deliveries get `401` and are not forwarded
-* **Multi-Demo Routing:** Asynchronously forwards verified events to active demo apps (`localhost:3000`, `3001`, `3002`, `3003`)
-* **Live Inspector Dashboard:** Open [http://localhost:8001](http://localhost:8001) to view real-time inbound deliveries and trigger test events
+```ts
+// Webhook route: verify the RAW body, accept either documented signature scheme
+const raw = await req.text();
+const { valid } = verifyFossaPayWebhookRequest(raw, req.headers, resolveWebhookSecret()!);
+```
 
+## Sandbox and live mode
 
-### Deploying to Vercel
-Each demo is its own Next.js app, so create **one Vercel project per demo** and set its *Root Directory* to `demos/<name>`
-(`near-offramp`, `safedeal`, `squadpay`, `ajosphere`). Each folder ships a `vercel.json` that installs the workspace from the repo root and builds `@fossapay/client` first. Leave "Include source files outside of the Root Directory" enabled.
+| | Sandbox (default) | Live (`FOSSAPAY_MODE=live`) |
+|---|---|---|
+| FossaPay calls | In-process mock ledger | Real production API |
+| Sample data and simulators | Shown | None; simulator endpoints return `403` |
+| Needs | nothing | `FOSSAPAY_API_KEY`, `FOSSAPAY_WEBHOOK_SECRET` |
 
-> [!NOTE]
-> Vercel is fine for **mock-mode showcase demos**, with a caveat: all state (deals, rooms, clubs, intents, the mock ledger) lives in per-instance memory, and timers/SSE are tied to a function instance. A request that lands on a different or cold instance will not find earlier state ("not found"). Treat the deployment as a single-visitor demo. A real deployment needs a shared store (Redis/Postgres) and a queue/cron for timers. The `webhook-gateway` is a long-running local server and is **not** deployable to Vercel; point FossaPay straight at a demo's `/api/webhook` instead.
+NairaBridge **declines live payouts** because its cross-chain deposit step is simulated and paying out real naira against it would be unsafe.
+See [Going live](docs/integration/06-going-live.md) for the full checklist.
 
-### Build, Typecheck, & Tests
+## Repository layout
+
+```
+demos/
+  near-offramp/   NairaBridge   :3000
+  safedeal/       SafeDeal      :3001
+  squadpay/       SquadPay      :3002
+  ajosphere/      AjoSphere     :3003
+packages/
+  fossapay-client/   typed client, mock ledger, webhook verification, money maths
+  ui/                shared design system
+  webhook-gateway/   local webhook ingestion and inspector (:8001)
+docs/integration/    the integration guide
+site/                the landing page (GitHub Pages)
+```
+
+## Scripts
+
 ```bash
-# Run full monorepo typecheck
-npm run typecheck
-
-# Run full monorepo production build
+npm run typecheck   # all workspaces
+npm run lint
+npm test            # unit + contract + journey tests (never touch production)
 npm run build
-
-# Run unit tests
-npm run test
-
-# Run complete automated E2E test suites across all workspaces
-npm run test:e2e
 ```
 
----
+## Status and known limitations
 
-## 🔒 Security & Standing Engineering Rules
+These are teaching demos. State is in memory, there is no end-user authentication, and the demos do not yet collect the customer
+details live FossaPay requires (date of birth, address, ...). [Going live](docs/integration/06-going-live.md) lists what a production system needs.
+Design decisions are logged in [DECISIONS.md](DECISIONS.md).
 
-### 1. Mock-First Architecture (100% Offline)
-By default, all applications run with `FOSSAPAY_MODE=mock`. The shared mock transport (`packages/fossapay-client`):
-- Runs entirely in-process without requiring external database services.
-- Deterministically resolves Nigerian bank accounts (`0123456789` -> `OLUWASEUN CHUKWUDI ADENIYI`, `9988776655` -> `TUNDE BALOGUN`).
-- Dispatches correctly HMAC-SHA256 signed webhooks (`x-fossapay-signature`) to application endpoints.
-- Implements strict idempotency checking using in-memory caches attached to `globalThis` to survive development hot-reloads.
+## Contributing
 
-### 2. Live Mode Switch (Untested)
-To switch any demo or the shared client to live FossaPay infrastructure:
-1. Copy `.env.example` to `.env` in the demo workspace:
-   ```bash
-   FOSSAPAY_MODE=live
-   FOSSAPAY_API_KEY=fk_production_your_actual_key_here
-   FOSSAPAY_WEBHOOK_SECRET=your_live_webhook_secret_here
-   ```
-2. In live mode, requests route to `https://api-production.fossapay.com/api/v1` with header `x-api-key: $FOSSAPAY_API_KEY`.
-> [!WARNING]
-> FossaPay is **production-only** (no sandbox): live mode moves real money. The live transport is verified against the published OpenAPI spec by contract tests, and read-only endpoints (banks, fee, master wallet) were confirmed against production. Money-moving calls (checkouts, payouts, KYC, transfers) have **not** been exercised against production.
->
-> Known gaps before using live mode with the demos (see DECISIONS.md, Phase 8):
-> - Checkout/payout amounts must be **whole naira**; SquadPay itemized shares with fractional kobo are rejected.
-> - `customers.create` needs real `dateOfBirth`, `address`, `city`, `country`, `email`, `phone`; the demos do not collect them yet.
-> - Payouts return `processing` and complete via `payout.completed`; only the Off-Ramp reacts to `payout.failed`/`reversed`. The other demos mark payouts settled on the create response.
-> - Each BVN/NIN lookup is billed (NGN 70 / NGN 120).
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+For security issues see [SECURITY.md](SECURITY.md). Never commit secrets and never run money-moving tests against production.
 
-### 3. Webhook Signature Verification
-Every webhook endpoint verifies the `x-fossapay-signature` header:
-- Computed as hex HMAC-SHA256 over `JSON.stringify(body.data)` (specifically over the `data` sub-object, never the entire envelope).
-- Compares signatures using `crypto.timingSafeEqual` with strict length guards to prevent timing attacks.
-- Returns `200 OK` fast, deduplicates processing on `body.eventId`, and executes domain workflows asynchronously.
+## License
 
-### 4. Strict Idempotency Keys
-Every mutating API call transmits a unique `X-Idempotency-Key` header (max 255 characters):
-- NEAR Off-Ramp: `offramp_payout_<intentId>_<attempt>`
-- SafeDeal Release: `safedeal_release_payout_<dealId>_<attempt>`
-- SafeDeal Refund: `safedeal_refund_payout_<dealId>_<attempt>`
-- SquadPay: `squad_payout_<roomId>`
-- AjoSphere KYC: `ajo_kyc_<clubId>_<last4>_<timestamp>`
-- AjoSphere Disbursal: `ajo_payout_<clubId>_round<n>`
-
-### 5. Monetary Arithmetic (Zero Floating Point)
-Currency calculations never use IEEE-754 floating-point numbers:
-- Represented as integer kobo (`BigInt` / `toKobo` / `fromKobo`) or `bignumber.js`.
-- Split bill remainders are distributed deterministically penny-by-penny across members using `distributeAmount`.
-
----
-
-## 📑 Top Architectural Decisions to Review
-
-Detailed justifications for all domain decisions are recorded in [DECISIONS.md](file:///home/peni/Projects/fossapay-demo/DECISIONS.md):
-1. **[Phase 1] Mock Singleton & Hot-Reload Persistence:** Stores attach to `globalThis` in development so that accounts and checkouts created in one route survive Next.js compilation and SSE stream reconnections.
-2. **[Phase 2] Offline Demo Wallet Adapter:** Included an offline `alice.near` demo wallet connector allowing 100% offline demonstration of the 4-step solver telemetry without browser extensions.
-3. **[Phase 3] SafeDeal Auto-Release Timer:** Enforces state transitions server-side with configurable inspection timers (seconds in demo vs 24 hours in prod) and scheduled auto-release.
-4. **[Phase 4] SquadPay Remainder Kobo:** Allocates odd kobo to the first $r$ participants in order, guaranteeing mathematical balance down to the exact kobo.
-5. **[Phase 5] AjoSphere KYC Privacy & Defaulter Mitigation:** Never stores plaintext BVN/NIN (only SHA-256 hash + last 4), cross-verifies legal names with payout bank accounts, and pauses disbursal into `HELD_DEFICIT` upon late deposits.
+[MIT](LICENSE) © Penivera

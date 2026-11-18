@@ -26,5 +26,28 @@
     "eslint": "^10.15.0",
     "prettier": "^3.10.1",
     "typescript": "^5.7.0"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Penivera/fossapay-demo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Penivera/fossapay-demo/issues"
+  },
+  "homepage": "https://github.com/Penivera/fossapay-demo#readme",
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "keywords": [
+    "fossapay",
+    "nigeria",
+    "payments",
+    "fintech",
+    "ngn",
+    "nextjs",
+    "typescript",
+    "demo"
+  ]
 }

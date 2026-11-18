@@ -2,6 +2,9 @@
 
 **SquadPay** is a live group dining and shared expense bill splitter with real-time settlement into the host's Nigerian bank account. Friends pay their individual shares via dynamic 30-minute virtual checkout accounts while the room board illuminates green in real time over Server-Sent Events (SSE).
 
+
+> Part of [FossaPay demos](../../README.md). See the [integration guide](../../docs/integration/04-recipes.md) for how this demo maps onto FossaPay. In live mode sample data and simulator controls are removed (`FOSSAPAY_MODE=live`).
+
 ---
 
 ## 🚀 Key Features

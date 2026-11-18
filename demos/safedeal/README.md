@@ -2,6 +2,9 @@
 
 **SafeDeal** is a trustless peer-to-peer escrow platform tailored for Instagram, Twitter (X), and WhatsApp social commerce merchants in Nigeria. It eliminates the rampant "payment before delivery" scams by locking buyer funds in escrow until goods are delivered and inspected.
 
+
+> Part of [FossaPay demos](../../README.md). See the [integration guide](../../docs/integration/04-recipes.md) for how this demo maps onto FossaPay. In live mode sample data and simulator controls are removed (`FOSSAPAY_MODE=live`).
+
 ---
 
 ## 🚀 Key Features

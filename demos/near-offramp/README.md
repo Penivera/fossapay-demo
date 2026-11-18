@@ -2,6 +2,9 @@
 
 The **NEAR Intents Off-Ramp** is a high-throughput, non-custodial DeFi-to-Naira liquidation portal. It enables users to liquidate crypto assets across multiple blockchains (Solana, Base, Arbitrum, Ethereum, Bitcoin, NEAR) directly into Nigerian bank accounts via automated NEAR Intent solvers and FossaPay Master NGN Payouts.
 
+
+> Part of [FossaPay demos](../../README.md). See the [integration guide](../../docs/integration/04-recipes.md) for how this demo maps onto FossaPay. In live mode sample data and simulator controls are removed (`FOSSAPAY_MODE=live`).
+
 ---
 
 ## 🚀 Key Features
@@ -24,7 +27,7 @@ The **NEAR Intents Off-Ramp** is a high-throughput, non-custodial DeFi-to-Naira 
    - Client-side download and print receipt capability.
 4. **Offline Demo Wallet Adapter (`WalletModal.tsx`)**
    - Complete 4-tab wallet selector (`[ SOCIAL / PASSKEYS ]`, `[ NEAR NATIVE ]`, `[ EVM / MULTI ]`, `[ SOL ]`).
-   - Built-in **Demo Wallet** (`alice.near`, 420.50 USDT balance) allowing 100% offline demonstration without browser extensions.
+   - Sandbox-only **sample wallet** (`alice.near`, 240.50 USDT) for offline demonstration. It is not offered in live mode.
 
 ---
 

@@ -2,6 +2,9 @@
 
 **AjoSphere** digitizes traditional West African rotating community savings circles (*Ajo* in Yoruba, *Esusu* in Igbo). It eliminates manual cash handling, ledger tampering, and untraceable defaulters by combining official BVN/NIN identity verification, permanent Providus Bank dedicated virtual accounts, and automated Friday lump-sum disbursals.
 
+
+> Part of [FossaPay demos](../../README.md). See the [integration guide](../../docs/integration/04-recipes.md) for how this demo maps onto FossaPay. In live mode sample data and simulator controls are removed (`FOSSAPAY_MODE=live`).
+
 ---
 
 ## 🚀 Key Features

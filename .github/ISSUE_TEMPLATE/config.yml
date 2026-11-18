@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: FossaPay API documentation
+    url: https://docs.fossapay.com
+    about: Questions about the FossaPay API itself belong with FossaPay
+  - name: Report a vulnerability
+    url: https://github.com/Penivera/fossapay-demo/security/advisories/new
+    about: Please report security issues privately
