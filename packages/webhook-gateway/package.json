@@ -1,0 +1,22 @@
+{
+  "name": "@fossapay/webhook-gateway",
+  "version": "1.0.0",
+  "description": "FossaPay Webhook Ingestion Gateway and Multi-Demo Dispatcher",
+  "private": true,
+  "main": "src/server.ts",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run test"
+  },
+  "dependencies": {
+    "@fossapay/client": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
