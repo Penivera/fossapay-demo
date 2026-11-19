@@ -2,6 +2,17 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { verifyFossaPayWebhookRequest, signFossaPayWebhook, FossaPayWebhookEvent } from '@fossapay/client';
+import {
+  type RecordedWebhookEvent,
+  recordEvent,
+  updateEvent,
+  getEvents,
+  checkAndMarkDuplicate,
+  getPersistenceStatus,
+  closeStore,
+} from './store';
+
+export type { RecordedWebhookEvent };
 
 // Load root .env if present
 const rootEnvPath = path.resolve(process.cwd(), '.env');
@@ -43,16 +54,6 @@ function isLocalRequest(req: http.IncomingMessage): boolean {
   return loopback && !proxied;
 }
 
-export interface RecordedWebhookEvent {
-  id: string;
-  receivedAt: string;
-  signature: string | null;
-  isValidSignature: boolean;
-  event: FossaPayWebhookEvent;
-  routedTo: string[];
-}
-
-const eventHistory: RecordedWebhookEvent[] = [];
 
 // Forwarding target demo apps
 const DEMO_TARGETS = [
@@ -123,6 +124,7 @@ export function createWebhookServer() {
 
     // 1. Health & Status Check for Webhook Endpoint
     if (req.method === 'GET' && url.pathname === '/platforms/webhook') {
+      const events = await getEvents();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -131,7 +133,8 @@ export function createWebhookServer() {
           publicEndpoint: 'https://fossapay-demo.reachapp.xyz/platforms/webhook',
           localPort: PORT,
           secretConfigured: !!getWebhookSecret(),
-          eventsReceived: eventHistory.length,
+          eventsReceived: events.length,
+          persistence: getPersistenceStatus(),
           timestamp: new Date().toISOString(),
         })
       );
@@ -189,7 +192,7 @@ export function createWebhookServer() {
             })
           );
           if (payload) {
-            eventHistory.unshift({
+            await recordEvent({
               id: payload.eventId || `evt_${Date.now()}`,
               receivedAt: new Date().toISOString(),
               signature,
@@ -197,8 +200,23 @@ export function createWebhookServer() {
               event: payload,
               routedTo: [],
             });
-            if (eventHistory.length > 100) eventHistory.pop();
           }
+          return;
+        }
+
+        const isDuplicate = await checkAndMarkDuplicate(payload?.eventId);
+        if (isDuplicate) {
+          console.log(`[Gateway] Duplicate event ${payload?.eventId} acknowledged without re-dispatching`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              status: 'success',
+              received: true,
+              eventId: payload?.eventId,
+              signatureVerified: true,
+              duplicate: true,
+            })
+          );
           return;
         }
 
@@ -223,10 +241,10 @@ export function createWebhookServer() {
             event: payload,
             routedTo: [],
           };
-          eventHistory.unshift(recorded);
-          if (eventHistory.length > 100) eventHistory.pop();
+          await recordEvent(recorded);
 
           recorded.routedTo = await forwardWebhook(rawBody, { legacy: signature, v2: signatureV2 }, payload);
+          await updateEvent(recorded);
           console.log(`[Gateway] Event ${payload.eventType || 'unknown'} routed to: ${recorded.routedTo.join(', ') || 'none online'}`);
         }
       });
@@ -235,8 +253,9 @@ export function createWebhookServer() {
 
     // 3. API Events endpoint (for polling & dashboard)
     if (req.method === 'GET' && url.pathname === '/api/events') {
+      const events = await getEvents();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'success', data: eventHistory }));
+      res.end(JSON.stringify({ status: 'success', data: events }));
       return;
     }
 
@@ -281,7 +300,7 @@ export function createWebhookServer() {
           // Forward through ingestion
           const routedTo = await forwardWebhook(rawBody, { legacy: signature }, event);
 
-          eventHistory.unshift({
+          await recordEvent({
             id: event.eventId,
             receivedAt: new Date().toISOString(),
             signature,
@@ -302,6 +321,8 @@ export function createWebhookServer() {
 
     // 5. Webhook Inspector & Platform Hub Dashboard
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/dashboard')) {
+      const events = await getEvents();
+      const persistence = getPersistenceStatus();
       const live = process.env.FOSSAPAY_MODE === 'live';
       const html = `<!DOCTYPE html>
 <html lang="en">
@@ -364,7 +385,7 @@ export function createWebhookServer() {
   <div class="grid cols3">
     <div class="card"><div class="label">Public webhook URL</div><div class="value mono">https://fossapay-demo.reachapp.xyz/platforms/webhook</div><div class="label">Cloudflare tunnel</div></div>
     <div class="card"><div class="label">Webhook secret</div><div class="value">${getWebhookSecret() ? 'Configured' : '<span style="color:var(--bad)">Not configured: all deliveries rejected</span>'}</div><div class="label">HMAC-SHA256, v2 or legacy header</div></div>
-    <div class="card"><div class="label">Events ingested</div><div class="value big" id="eventCount">${eventHistory.length}</div><div class="label">Forwarded to demo apps</div></div>
+    <div class="card"><div class="label">Events ingested (${persistence === 'redis' ? 'Redis' : 'Memory'})</div><div class="value big" id="eventCount">${events.length}</div><div class="label">${persistence === 'redis' ? 'Persistent Redis list' : 'In-memory (ephemeral)'}</div></div>
   </div>
 
   <section>
@@ -380,9 +401,9 @@ export function createWebhookServer() {
   <section>
     <div class="row"><h2>Inbound deliveries</h2><span class="label">Count updates automatically</span></div>
     ${
-      eventHistory.length === 0
+      events.length === 0
         ? `<div class="card empty">No webhook events received yet. Deliveries from FossaPay appear here.</div>`
-        : eventHistory
+        : events
             .map(
               (ev) => `
     <div class="card event ${ev.isValidSignature ? '' : 'invalid'}">
@@ -422,6 +443,10 @@ export function createWebhookServer() {
     res.end(JSON.stringify({ status: 'error', message: 'Not Found' }));
   });
 
+  server.on('close', async () => {
+    await closeStore();
+  });
+
   return server;
 }
 
@@ -432,6 +457,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`🚀 FossaPay Webhook Gateway listening on port ${PORT}`);
     console.log(`🌐 Public Tunnel URL: https://fossapay-demo.reachapp.xyz/platforms/webhook`);
     console.log(`🔒 HMAC Secret: ${getWebhookSecret() ? 'configured' : 'NOT CONFIGURED: all deliveries will be rejected'}`);
+    console.log(`💾 Storage Persistence: ${getPersistenceStatus().toUpperCase()}`);
     console.log(`📊 Local Webhook Inspector: http://localhost:${PORT}`);
     console.log(`=======================================================`);
   });

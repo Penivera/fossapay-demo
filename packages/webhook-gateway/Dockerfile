@@ -32,7 +32,7 @@ ENV NODE_ENV=production \
 # Install only what the gateway needs at runtime; a full workspace install would ship all demo apps.
 COPY --from=build /tmp/fossapay-client-*.tgz /tmp/
 RUN npm init --yes >/dev/null \
- && npm install --omit=dev --no-audit --no-fund /tmp/fossapay-client-*.tgz tsx@4.23.15 \
+ && npm install --omit=dev --no-audit --no-fund /tmp/fossapay-client-*.tgz tsx@4.23.15 ioredis@^6.0.0 \
  && rm -rf /tmp/fossapay-client-*.tgz package-lock.json /root/.npm
 
 COPY packages/webhook-gateway/src packages/webhook-gateway/src
