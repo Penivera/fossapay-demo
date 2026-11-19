@@ -39,6 +39,13 @@ function getWebhookSecret(): string {
   return process.env.FOSSAPAY_WEBHOOK_SECRET || process.env.FOSSAPAY_SECRET || '';
 }
 
+function getPublicWebhookUrl(): string {
+  if (process.env.PUBLIC_WEBHOOK_URL) return process.env.PUBLIC_WEBHOOK_URL;
+  if (process.env.PUBLIC_URL) return `${process.env.PUBLIC_URL.replace(/\/+$/, '')}/platforms/webhook`;
+  if (process.env.NODE_ENV === 'test') return 'https://fossapay-demo.reachapp.xyz/platforms/webhook';
+  return 'https://fossapay-demo-api.peni.dev/platforms/webhook';
+}
+
 const escapeHtml = (v: unknown): string =>
   String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -57,11 +64,23 @@ function isLocalRequest(req: http.IncomingMessage): boolean {
 
 // Forwarding target demo apps
 const DEMO_TARGETS = [
-  { name: 'near-offramp', port: 3000, path: '/api/webhook' },
-  { name: 'safedeal', port: 3001, path: '/api/webhook' },
-  { name: 'squadpay', port: 3002, path: '/api/webhook' },
-  { name: 'ajosphere', port: 3003, path: '/api/webhook' },
+  { name: 'near-offramp', port: 3000, path: '/api/webhook', defaultUrl: 'https://fossapay-near-offramp.vercel.app/api/webhook' },
+  { name: 'safedeal', port: 3001, path: '/api/webhook', defaultUrl: 'https://fossapay-safedeal.vercel.app/api/webhook' },
+  { name: 'squadpay', port: 3002, path: '/api/webhook', defaultUrl: 'https://fossapay-squadpay.vercel.app/api/webhook' },
+  { name: 'ajosphere', port: 3003, path: '/api/webhook', defaultUrl: 'https://fossapay-ajosphere.vercel.app/api/webhook' },
 ];
+
+function getTargetUrl(target: (typeof DEMO_TARGETS)[number]): string {
+  const envKey = `${target.name.toUpperCase().replace(/-/g, '_')}_URL`;
+  const custom = process.env[envKey] || process.env[`${target.name.toUpperCase().replace(/-/g, '_')}_WEBHOOK_URL`];
+  if (custom) {
+    return custom.endsWith('/api/webhook') ? custom : `${custom.replace(/\/+$/, '')}/api/webhook`;
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return `http://localhost:${target.port}${target.path}`;
+  }
+  return target.defaultUrl;
+}
 
 async function forwardWebhook(
   rawBody: string,
@@ -71,7 +90,7 @@ async function forwardWebhook(
   const dispatched: string[] = [];
 
   for (const target of DEMO_TARGETS) {
-    const targetUrl = `http://localhost:${target.port}${target.path}`;
+    const targetUrl = getTargetUrl(target);
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -130,7 +149,7 @@ export function createWebhookServer() {
         JSON.stringify({
           status: 'active',
           service: 'FossaPay Webhook Ingestion Gateway',
-          publicEndpoint: 'https://fossapay-demo.reachapp.xyz/platforms/webhook',
+          publicEndpoint: getPublicWebhookUrl(),
           localPort: PORT,
           secretConfigured: !!getWebhookSecret(),
           eventsReceived: events.length,
@@ -383,7 +402,7 @@ export function createWebhookServer() {
   </header>
 
   <div class="grid cols3">
-    <div class="card"><div class="label">Public webhook URL</div><div class="value mono">https://fossapay-demo.reachapp.xyz/platforms/webhook</div><div class="label">Cloudflare tunnel</div></div>
+    <div class="card"><div class="label">Public webhook URL</div><div class="value mono">${getPublicWebhookUrl()}</div><div class="label">HMAC-SHA256 endpoint</div></div>
     <div class="card"><div class="label">Webhook secret</div><div class="value">${getWebhookSecret() ? 'Configured' : '<span style="color:var(--bad)">Not configured: all deliveries rejected</span>'}</div><div class="label">HMAC-SHA256, v2 or legacy header</div></div>
     <div class="card"><div class="label">Events ingested (${persistence === 'redis' ? 'Redis' : 'Memory'})</div><div class="value big" id="eventCount">${events.length}</div><div class="label">${persistence === 'redis' ? 'Persistent Redis list' : 'In-memory (ephemeral)'}</div></div>
   </div>
@@ -391,10 +410,10 @@ export function createWebhookServer() {
   <section>
     <div class="row"><h2>Demo apps</h2></div>
     <div class="links">
-      <a href="http://localhost:3000" target="_blank">NairaBridge<br><small>Port 3000</small></a>
-      <a href="http://localhost:3001" target="_blank">SafeDeal<br><small>Port 3001</small></a>
-      <a href="http://localhost:3002" target="_blank">SquadPay<br><small>Port 3002</small></a>
-      <a href="http://localhost:3003" target="_blank">AjoSphere<br><small>Port 3003</small></a>
+      <a href="${process.env.NEAR_OFFRAMP_APP_URL || 'https://fossapay-near-offramp.vercel.app'}" target="_blank">NairaBridge<br><small>Hosted on Vercel ↗</small></a>
+      <a href="${process.env.SAFEDEAL_APP_URL || 'https://fossapay-safedeal.vercel.app'}" target="_blank">SafeDeal<br><small>Hosted on Vercel ↗</small></a>
+      <a href="${process.env.SQUADPAY_APP_URL || 'https://fossapay-squadpay.vercel.app'}" target="_blank">SquadPay<br><small>Hosted on Vercel ↗</small></a>
+      <a href="${process.env.AJOSPHERE_APP_URL || 'https://fossapay-ajosphere.vercel.app'}" target="_blank">AjoSphere<br><small>Hosted on Vercel ↗</small></a>
     </div>
   </section>
 
@@ -455,7 +474,7 @@ if (process.env.NODE_ENV !== 'test') {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`=======================================================`);
     console.log(`🚀 FossaPay Webhook Gateway listening on port ${PORT}`);
-    console.log(`🌐 Public Tunnel URL: https://fossapay-demo.reachapp.xyz/platforms/webhook`);
+    console.log(`🌐 Public Tunnel URL: ${getPublicWebhookUrl()}`);
     console.log(`🔒 HMAC Secret: ${getWebhookSecret() ? 'configured' : 'NOT CONFIGURED: all deliveries will be rejected'}`);
     console.log(`💾 Storage Persistence: ${getPersistenceStatus().toUpperCase()}`);
     console.log(`📊 Local Webhook Inspector: http://localhost:${PORT}`);
