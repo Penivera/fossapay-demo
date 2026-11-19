@@ -370,6 +370,10 @@ export class AjoClubStore {
       phoneNumber: params.phone || kycResult.phone || `080${cleanNum.slice(-8)}`,
       firstName,
       lastName,
+      dateOfBirth: '1992-06-15',
+      address: 'Broad Street',
+      city: 'Lagos',
+      country: 'Nigeria',
       metadata: {
         clubId: club.id,
         bvnOrNinLast4,

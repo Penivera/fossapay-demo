@@ -123,6 +123,10 @@ class SafeDealStore {
       lastName: params.seller.name.split(' ')[1] || 'Seller',
       email: params.seller.email,
       phoneNumber: params.seller.phone,
+      dateOfBirth: '1990-01-01',
+      address: 'Commercial Avenue',
+      city: 'Lagos',
+      country: 'Nigeria',
     });
 
     const sellerWallet = await this.fossaClient.wallets.createFiatWallet({
@@ -230,6 +234,10 @@ class SafeDealStore {
         lastName: buyer.name.split(' ')[1] || 'Buyer',
         phoneNumber: buyer.phone,
         email: buyer.email,
+        dateOfBirth: '1995-01-01',
+        address: 'Marina Street',
+        city: 'Lagos',
+        country: 'Nigeria',
       });
 
       const buyerWallet = await this.fossaClient.wallets.createFiatWallet({

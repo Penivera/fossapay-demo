@@ -571,9 +571,11 @@ export class FossaPayClient {
       if (!/^\d{10}$/.test(accountNumber)) {
         throw new FossaPayError('accountNumber must contain exactly 10 digits', 400);
       }
+      // Map CBN institution code 999992 (OPay) to live NIBSS code 100004 expected by FossaPay
+      const liveBankCode = bankCode === '999992' ? '100004' : bankCode;
       const res = await this.request<any>('/transfers/fiat/bank-name-enquiry', {
         method: 'POST',
-        body: { accountNumber, bankCode },
+        body: { accountNumber, bankCode: liveBankCode },
       });
       return {
         accountName: res.accountName,

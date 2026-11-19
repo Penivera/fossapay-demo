@@ -64,10 +64,10 @@ function isLocalRequest(req: http.IncomingMessage): boolean {
 
 // Forwarding target demo apps
 const DEMO_TARGETS = [
-  { name: 'near-offramp', port: 3000, path: '/api/webhook', defaultUrl: 'https://fossapay-near-offramp.vercel.app/api/webhook' },
-  { name: 'safedeal', port: 3001, path: '/api/webhook', defaultUrl: 'https://fossapay-safedeal.vercel.app/api/webhook' },
-  { name: 'squadpay', port: 3002, path: '/api/webhook', defaultUrl: 'https://fossapay-squadpay.vercel.app/api/webhook' },
-  { name: 'ajosphere', port: 3003, path: '/api/webhook', defaultUrl: 'https://fossapay-ajosphere.vercel.app/api/webhook' },
+  { name: 'near-offramp', port: 3000, path: '/api/webhook', defaultUrl: 'https://fossapay-demo.peni.dev/near-offramp/api/webhook' },
+  { name: 'safedeal', port: 3001, path: '/api/webhook', defaultUrl: 'https://fossapay-demo.peni.dev/safedeal/api/webhook' },
+  { name: 'squadpay', port: 3002, path: '/api/webhook', defaultUrl: 'https://fossapay-demo.peni.dev/squadpay/api/webhook' },
+  { name: 'ajosphere', port: 3003, path: '/api/webhook', defaultUrl: 'https://fossapay-demo.peni.dev/ajosphere/api/webhook' },
 ];
 
 function getTargetUrl(target: (typeof DEMO_TARGETS)[number]): string {
@@ -410,10 +410,10 @@ export function createWebhookServer() {
   <section>
     <div class="row"><h2>Demo apps</h2></div>
     <div class="links">
-      <a href="${process.env.NEAR_OFFRAMP_APP_URL || 'https://fossapay-near-offramp.vercel.app'}" target="_blank">NairaBridge<br><small>Hosted on Vercel ↗</small></a>
-      <a href="${process.env.SAFEDEAL_APP_URL || 'https://fossapay-safedeal.vercel.app'}" target="_blank">SafeDeal<br><small>Hosted on Vercel ↗</small></a>
-      <a href="${process.env.SQUADPAY_APP_URL || 'https://fossapay-squadpay.vercel.app'}" target="_blank">SquadPay<br><small>Hosted on Vercel ↗</small></a>
-      <a href="${process.env.AJOSPHERE_APP_URL || 'https://fossapay-ajosphere.vercel.app'}" target="_blank">AjoSphere<br><small>Hosted on Vercel ↗</small></a>
+      <a href="${process.env.NEAR_OFFRAMP_APP_URL || 'https://fossapay-demo.peni.dev/near-offramp'}" target="_blank">NairaBridge<br><small>Hosted at /near-offramp ↗</small></a>
+      <a href="${process.env.SAFEDEAL_APP_URL || 'https://fossapay-demo.peni.dev/safedeal'}" target="_blank">SafeDeal<br><small>Hosted at /safedeal ↗</small></a>
+      <a href="${process.env.SQUADPAY_APP_URL || 'https://fossapay-demo.peni.dev/squadpay'}" target="_blank">SquadPay<br><small>Hosted at /squadpay ↗</small></a>
+      <a href="${process.env.AJOSPHERE_APP_URL || 'https://fossapay-demo.peni.dev/ajosphere'}" target="_blank">AjoSphere<br><small>Hosted at /ajosphere ↗</small></a>
     </div>
   </section>
 
