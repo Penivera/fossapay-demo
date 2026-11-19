@@ -5,6 +5,14 @@ import { AppShell } from '@fossapay/ui';
 export const metadata: Metadata = {
   title: 'AjoSphere | Digital savings circles',
   description: 'Automated Ajo/Esusu savings clubs with verified members and dedicated accounts, powered by FossaPay',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export const dynamic = 'force-dynamic';

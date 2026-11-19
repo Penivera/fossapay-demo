@@ -84,7 +84,10 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
         <a href="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> All clubs</a>
         <div className="flex items-center gap-2">
           {club.members.length < club.totalRounds && <ButtonLink href={`/club/${club.id}/join`} size="sm" variant="soft">Join ({club.members.length}/{club.totalRounds})</ButtonLink>}
-          <Button size="sm" variant="secondary" onClick={() => copy(`${window.location.origin}/club/${club.id}/join`, 'invite')}>
+          <Button size="sm" variant="secondary" onClick={() => {
+            const basePath = window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
+            copy(`${window.location.origin}${basePath}/club/${club.id}/join`, 'invite');
+          }}>
             {copied === 'invite' ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />} {copied === 'invite' ? 'Copied' : 'Copy invite link'}
           </Button>
         </div>

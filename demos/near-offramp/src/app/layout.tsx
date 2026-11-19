@@ -7,6 +7,14 @@ import { WalletButton } from '../components/WalletButton';
 export const metadata: Metadata = {
   title: 'NairaBridge | Crypto to Nigerian bank accounts',
   description: 'Cross-chain off-ramp powered by NEAR Intents and FossaPay',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 // Mode is read per request so one build can run in either mode

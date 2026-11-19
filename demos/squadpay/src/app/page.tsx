@@ -57,7 +57,9 @@ export default function CreateRoomPage() {
     }
   };
 
-  const link = createdRoom ? `${window.location.origin}/r/${createdRoom.id}` : '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/squadpay') ? '/squadpay' : '';
+  const link = createdRoom ? `${origin}${basePath}/r/${createdRoom.id}` : '';
 
   return (
     <Stage

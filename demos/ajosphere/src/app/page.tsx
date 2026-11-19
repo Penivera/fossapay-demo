@@ -102,7 +102,7 @@ export default function AjoHomePage() {
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Weekly share (₦)">
-              <Input required type="number" min="1000" step="1000" value={form.contributionAmount} onChange={(e) => setForm({ ...form, contributionAmount: e.target.value })} className="tabular" />
+              <Input required type="number" min="100" step="any" value={form.contributionAmount} onChange={(e) => setForm({ ...form, contributionAmount: e.target.value })} className="tabular" />
             </Field>
             <Field label="Members and rounds">
               <Input required type="number" min="2" max="20" value={form.totalRounds} onChange={(e) => setForm({ ...form, totalRounds: e.target.value })} className="tabular" />

@@ -69,7 +69,8 @@ export default function CreateDealPage() {
   };
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const buyerLink = createdDeal ? `${origin}/d/${createdDeal.id}` : '';
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/safedeal') ? '/safedeal' : '';
+  const buyerLink = createdDeal ? `${origin}${basePath}/d/${createdDeal.id}` : '';
   const sellerLink = createdDeal ? `${buyerLink}?sellerToken=${createdDeal.seller.sellerToken}` : '';
 
   return (
