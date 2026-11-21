@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   FossaPayClient,
   toKobo,
@@ -153,6 +156,9 @@ export function verifyNameMatch(kycName: string, bankAccountName: string): boole
   return matches.length >= 2 || (matches.length >= 1 && (kycTokens.length === 1 || bankTokens.length === 1));
 }
 
+const AJO_DB_FILE = path.join(os.tmpdir(), 'ajosphere_clubs.json');
+const AJO_PENDING_KYC_FILE = path.join(os.tmpdir(), 'ajosphere_pending_kyc.json');
+
 // In-memory persistent store surviving hot-reloads
 export class AjoClubStore {
   private clubs = new Map<string, AjoClub>();
@@ -161,8 +167,54 @@ export class AjoClubStore {
   private pendingKycVerifications = new Map<string, PendingKycVerification>();
 
   constructor() {
+    this.loadFromDisk();
     // Sample data exists only in the offline sandbox. Live mode starts empty.
-    if (process.env.FOSSAPAY_MODE !== 'live') this.seedDemoClub();
+    if (process.env.FOSSAPAY_MODE !== 'live' && this.clubs.size === 0) this.seedDemoClub();
+  }
+
+  private loadFromDisk(): void {
+    try {
+      if (fs.existsSync(AJO_DB_FILE)) {
+        const raw = fs.readFileSync(AJO_DB_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          for (const c of data) {
+            if (c && c.id) {
+              this.clubs.set(c.id, c);
+              for (const m of c.members || []) {
+                if (m.dedicatedAccountNumber) {
+                  this.accountToClubMap.set(m.dedicatedAccountNumber, { clubId: c.id, memberId: m.id });
+                }
+              }
+            }
+          }
+        }
+      }
+      if (fs.existsSync(AJO_PENDING_KYC_FILE)) {
+        const raw = fs.readFileSync(AJO_PENDING_KYC_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          for (const p of data) {
+            if (p && p.id) {
+              this.pendingKycVerifications.set(p.id, p);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[AjoStore] Failed to load from disk:', err);
+    }
+  }
+
+  private saveToDisk(): void {
+    try {
+      const data = Array.from(this.clubs.values());
+      fs.writeFileSync(AJO_DB_FILE, JSON.stringify(data), 'utf-8');
+      const pendingData = Array.from(this.pendingKycVerifications.values());
+      fs.writeFileSync(AJO_PENDING_KYC_FILE, JSON.stringify(pendingData), 'utf-8');
+    } catch (err) {
+      console.warn('[AjoStore] Failed to save to disk:', err);
+    }
   }
 
   private seedDemoClub(): void {
@@ -298,10 +350,16 @@ export class AjoClubStore {
   }
 
   getClub(id: string): AjoClub | undefined {
-    return this.clubs.get(id);
+    let club = this.clubs.get(id);
+    if (!club) {
+      this.loadFromDisk();
+      club = this.clubs.get(id);
+    }
+    return club;
   }
 
   listClubs(): AjoClub[] {
+    this.loadFromDisk();
     return Array.from(this.clubs.values());
   }
 
@@ -347,6 +405,7 @@ export class AjoClubStore {
     };
 
     this.clubs.set(id, club);
+    this.saveToDisk();
     this.broadcast(id);
     return club;
   }
@@ -362,7 +421,11 @@ export class AjoClubStore {
     email?: string;
     phone?: string;
   }): Promise<JoinClubResult> {
-    const club = this.clubs.get(params.clubId);
+    let club = this.clubs.get(params.clubId);
+    if (!club) {
+      this.loadFromDisk();
+      club = this.clubs.get(params.clubId);
+    }
     if (!club) throw new Error(`Club ${params.clubId} not found`);
 
     if (club.members.length >= club.totalRounds) {
@@ -432,6 +495,7 @@ export class AjoClubStore {
           accountName,
           createdAt: new Date().toISOString(),
         });
+        this.saveToDisk();
 
         return {
           paymentRequired: true,
@@ -562,13 +626,18 @@ export class AjoClubStore {
     });
 
     club.updatedAt = new Date().toISOString();
+    this.saveToDisk();
     this.broadcast(club.id);
 
     return { member, club };
   }
 
   async confirmKycPayment(pendingId: string, simulate = false): Promise<{ member: AjoMember; club: AjoClub }> {
-    const pending = this.pendingKycVerifications.get(pendingId);
+    let pending = this.pendingKycVerifications.get(pendingId);
+    if (!pending) {
+      this.loadFromDisk();
+      pending = this.pendingKycVerifications.get(pendingId);
+    }
     if (!pending) {
       throw new Error('Verification request not found or has expired. Please try joining again.');
     }
@@ -600,11 +669,17 @@ export class AjoClubStore {
     }
 
     this.pendingKycVerifications.delete(pendingId);
+    this.saveToDisk();
     return res as { member: AjoMember; club: AjoClub };
   }
 
   getPendingKycVerification(id: string): PendingKycVerification | undefined {
-    return this.pendingKycVerifications.get(id);
+    let pending = this.pendingKycVerifications.get(id);
+    if (!pending) {
+      this.loadFromDisk();
+      pending = this.pendingKycVerifications.get(id);
+    }
+    return pending;
   }
 
   async handleCheckoutCompletedWebhook(checkoutId: string): Promise<void> {

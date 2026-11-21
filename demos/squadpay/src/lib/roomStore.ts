@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import BigNumber from 'bignumber.js';
 import {
   FossaPayClient,
@@ -65,6 +68,8 @@ export interface Room {
   updatedAt: string;
 }
 
+const SQUAD_DB_FILE = path.join(os.tmpdir(), 'squadpay_rooms.json');
+
 type RoomSubscriber = (room: Room) => void;
 
 class SquadPayStore {
@@ -77,6 +82,34 @@ class SquadPayStore {
       mode: process.env.FOSSAPAY_MODE === 'live' ? 'live' : 'mock',
       mockLedger: defaultMockLedger,
     });
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk(): void {
+    try {
+      if (fs.existsSync(SQUAD_DB_FILE)) {
+        const raw = fs.readFileSync(SQUAD_DB_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          for (const r of data) {
+            if (r && r.id) {
+              this.rooms.set(r.id, r);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[RoomStore] Failed to load rooms from disk:', err);
+    }
+  }
+
+  private saveToDisk(): void {
+    try {
+      const data = Array.from(this.rooms.values());
+      fs.writeFileSync(SQUAD_DB_FILE, JSON.stringify(data), 'utf-8');
+    } catch (err) {
+      console.warn('[RoomStore] Failed to save rooms to disk:', err);
+    }
   }
 
   async createRoom(params: {
@@ -161,15 +194,22 @@ class SquadPayStore {
     };
 
     this.rooms.set(id, room);
+    this.saveToDisk();
     this.notify(room);
     return room;
   }
 
   getRoom(id: string): Room | undefined {
-    return this.rooms.get(id);
+    let room = this.rooms.get(id);
+    if (!room) {
+      this.loadFromDisk();
+      room = this.rooms.get(id);
+    }
+    return room;
   }
 
   listRooms(): Room[] {
+    this.loadFromDisk();
     return Array.from(this.rooms.values());
   }
 
@@ -193,6 +233,7 @@ class SquadPayStore {
 
   private notify(room: Room): void {
     room.updatedAt = new Date().toISOString();
+    this.saveToDisk();
     const set = this.subscribers.get(room.id);
     if (set) {
       for (const cb of set) {
