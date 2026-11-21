@@ -21,6 +21,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const { id: dealId } = use(params);
   const sellerToken = useSearchParams().get('sellerToken');
   const { isMock } = useMode();
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/safedeal') ? '/safedeal' : '';
 
   const [deal, setDeal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   const [buyerName, setBuyerName] = useState(isMock ? 'Chidinma Okonkwo' : '');
   const [buyerPhone, setBuyerPhone] = useState(isMock ? '08011223344' : '');
+  const [buyerEmail, setBuyerEmail] = useState(isMock ? 'chidinma@safedeal.ng' : '');
 
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
@@ -37,7 +39,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const es = new EventSource(`/api/deals/${dealId}/stream`);
+    const es = new EventSource(`${basePath}/api/deals/${dealId}/stream`);
     es.onmessage = (ev) => {
       try {
         setDeal(JSON.parse(ev.data));
@@ -45,13 +47,13 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       setLoading(false);
     };
     es.onerror = () => {
-      fetch(`/api/deals/${dealId}`)
+      fetch(`${basePath}/api/deals/${dealId}`)
         .then((r) => r.json())
         .then((res) => res.status === 'success' && setDeal(res.data))
         .finally(() => setLoading(false));
     };
     return () => es.close();
-  }, [dealId]);
+  }, [dealId, basePath]);
 
   useEffect(() => {
     if (deal?.status !== 'INSPECTION_PERIOD' || !deal.inspectionExpiresAt) {
@@ -69,7 +71,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const act = async (key: string, path: string, init?: RequestInit) => {
     setBusy(key);
     try {
-      const res = await fetch(`/api/deals/${dealId}/${path}`, { method: 'POST', ...init });
+      const res = await fetch(`${basePath}/api/deals/${dealId}/${path}`, { method: 'POST', ...init });
       const json = await res.json().catch(() => null);
       if (json?.status === 'success' && json.data?.id) setDeal(json.data);
     } finally {
@@ -79,7 +81,10 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   const startCheckout = (e: React.FormEvent) => {
     e.preventDefault();
-    act('checkout', 'checkout', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: buyerName, phone: buyerPhone }) });
+    act('checkout', 'checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: buyerName, phone: buyerPhone, email: buyerEmail.trim() || undefined }),
+    });
   };
 
   const submitDispute = async (e: React.FormEvent) => {
@@ -90,10 +95,10 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       if (disputePhoto) {
         const fd = new FormData();
         fd.append('photo', disputePhoto);
-        const up = await (await fetch(`/api/deals/${dealId}/upload`, { method: 'POST', body: fd })).json();
+        const up = await (await fetch(`${basePath}/api/deals/${dealId}/upload`, { method: 'POST', body: fd })).json();
         if (up.status === 'success') evidencePhotoUrl = up.data.url;
       }
-      await fetch(`/api/deals/${dealId}/dispute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: disputeReason, evidencePhotoUrl }) });
+      await fetch(`${basePath}/api/deals/${dealId}/dispute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: disputeReason, evidencePhotoUrl }) });
       setDisputeOpen(false);
     } finally {
       setBusy(null);
@@ -110,7 +115,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   if (!deal) {
     return (
       <Page narrow>
-        <EmptyState title="Deal not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href="/" variant="secondary">Create a new deal</ButtonLink>} />
+        <EmptyState title="Deal not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={`${basePath}/`} variant="secondary">Create a new deal</ButtonLink>} />
       </Page>
     );
   }
@@ -123,7 +128,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <Page>
-      <a href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink">
+      <a href={`${basePath}/`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink">
         <ArrowLeft className="h-4 w-4" /> New deal
       </a>
 
@@ -160,6 +165,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                 </div>
                 <Field label="Name"><Input required value={buyerName} onChange={(e) => setBuyerName(e.target.value)} /></Field>
                 <Field label="Phone"><Input required inputMode="tel" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} /></Field>
+                <Field label="Email (optional)"><Input type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} placeholder="name@example.com" /></Field>
                 <Button type="submit" size="lg" block loading={busy === 'checkout'}>Continue to payment</Button>
               </form>
             )}
@@ -250,7 +256,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
             {deal.status === 'DISPUTED' && (
               <div className="space-y-3">
                 <Notice tone="warning" title="Dispute under review">{deal.dispute?.reason}</Notice>
-                <ButtonLink href="/admin" variant="secondary" block>Open mediation desk</ButtonLink>
+                <ButtonLink href={`${basePath}/admin`} variant="secondary" block>Open mediation desk</ButtonLink>
               </div>
             )}
 

@@ -13,6 +13,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanPhone = (seller.phone || '').replace(/\D/g, '');
+    const sellerEmail = seller.email?.trim() || (cleanPhone ? `seller_${cleanPhone}@safedeal.ng` : undefined);
+
     const deal = await safeDealStore.createDeal({
       title,
       description: description || '',
@@ -21,7 +24,7 @@ export async function POST(req: NextRequest) {
       seller: {
         name: seller.name || seller.accountName,
         phone: seller.phone || '08012345678',
-        email: seller.email || 'seller@example.com',
+        email: sellerEmail,
         bankName: seller.bankName || 'Commercial Bank',
         bankCode: seller.bankCode,
         accountNumber: seller.accountNumber,

@@ -35,11 +35,15 @@ export default function CreateDealPage() {
   const [price, setPrice] = useState(isMock ? '420000' : '');
   const [sellerName, setSellerName] = useState(isMock ? 'Tunde Balogun' : '');
   const [sellerPhone, setSellerPhone] = useState(isMock ? '08099887766' : '');
+  const [sellerEmail, setSellerEmail] = useState(isMock ? 'tunde@safedeal.ng' : '');
   const [account, setAccount] = useState<BankAccountValue>(isMock ? { bankCode: '058', bankName: '', accountNumber: '9988776655', accountName: '' } : emptyBankAccount);
 
   const [createdDeal, setCreatedDeal] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/safedeal') ? '/safedeal' : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +51,7 @@ export default function CreateDealPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/deals', {
+      const res = await fetch(`${basePath}/api/deals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -55,7 +59,15 @@ export default function CreateDealPage() {
           description,
           price,
           inspectionPeriodSeconds: 15,
-          seller: { name: sellerName, phone: sellerPhone, bankName: account.bankName || 'Commercial Bank', bankCode: account.bankCode, accountNumber: account.accountNumber, accountName: account.accountName },
+          seller: {
+            name: sellerName,
+            phone: sellerPhone,
+            email: sellerEmail.trim() || undefined,
+            bankName: account.bankName || 'Commercial Bank',
+            bankCode: account.bankCode,
+            accountNumber: account.accountNumber,
+            accountName: account.accountName,
+          },
         }),
       });
       const json = await res.json();
@@ -68,8 +80,6 @@ export default function CreateDealPage() {
     }
   };
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/safedeal') ? '/safedeal' : '';
   const buyerLink = createdDeal ? `${origin}${basePath}/d/${createdDeal.id}` : '';
   const sellerLink = createdDeal ? `${buyerLink}?sellerToken=${createdDeal.seller.sellerToken}` : '';
 
@@ -100,7 +110,7 @@ export default function CreateDealPage() {
           </div>
           <CopyRow label="Buyer link, share this on WhatsApp or DM" value={buyerLink} />
           <CopyRow label="Seller link, keep this private" value={sellerLink} />
-          <ButtonLink href={`/d/${createdDeal.id}`} size="lg" block>
+          <ButtonLink href={`${basePath}/d/${createdDeal.id}`} size="lg" block>
             Open buyer view <ArrowRight className="h-4 w-4" />
           </ButtonLink>
         </Card>
@@ -126,6 +136,9 @@ export default function CreateDealPage() {
                 <Input required inputMode="tel" value={sellerPhone} onChange={(e) => setSellerPhone(e.target.value)} />
               </Field>
             </div>
+            <Field label="Your email (optional)" hint="Used for deal receipts and escrow notifications">
+              <Input type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} placeholder="name@example.com" />
+            </Field>
             <BankAccountPicker label="Where should we pay you?" value={account} onChange={setAccount} />
             {error && <p className="text-sm font-medium text-danger-ink">{error}</p>}
             <Button type="submit" size="lg" block loading={isSubmitting} disabled={!account.accountName}>

@@ -36,7 +36,7 @@ export default function CreateRoomPage() {
       const participantInputs = mode === 'equal' ? [{ name: hostLabel }, ...filled.map((f) => ({ name: f.name }))] : [{ name: hostLabel, amount: hostShare }, ...filled.map((f) => ({ name: f.name, amount: f.amount }))];
       // Itemised: the room total is the sum of the shares (the API requires a total either way)
       const itemisedTotal = participantInputs.reduce((sum, p) => sum + Number((p as { amount?: string }).amount || 0), 0);
-      const res = await fetch('/api/rooms', {
+      const res = await fetch(`${basePath}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,7 +102,7 @@ export default function CreateRoomPage() {
               </Button>
             </div>
           </Field>
-          <ButtonLink href={`/r/${createdRoom.id}`} size="lg" block>
+          <ButtonLink href={`${basePath}/r/${createdRoom.id}`} size="lg" block>
             Open room <ArrowRight className="h-4 w-4" />
           </ButtonLink>
         </Card>

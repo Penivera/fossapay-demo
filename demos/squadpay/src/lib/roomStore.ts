@@ -390,9 +390,7 @@ class SquadPayStore {
   }
 }
 
-// Global hot-reload singleton
+// Global singleton attached to globalThis across hot reloads & serverless invocations
 const globalForSquadPay = globalThis as unknown as { __squadPayStore?: SquadPayStore };
 export const squadPayStore = globalForSquadPay.__squadPayStore || new SquadPayStore();
-if (process.env.NODE_ENV !== 'production') {
-  globalForSquadPay.__squadPayStore = squadPayStore;
-}
+globalForSquadPay.__squadPayStore = squadPayStore;

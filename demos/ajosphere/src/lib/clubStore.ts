@@ -93,6 +93,42 @@ export interface AjoClub {
   updatedAt: string;
 }
 
+export interface PendingKycVerification {
+  id: string;
+  clubId: string;
+  kycMethod: 'BVN' | 'NIN';
+  identityNumber: string;
+  accountNumber: string;
+  bankCode: string;
+  email?: string;
+  phone?: string;
+  checkoutId: string;
+  checkout: any;
+  fee: string;
+  accountName: string;
+  createdAt: string;
+}
+
+export type JoinClubResult =
+  | { member: AjoMember; club: AjoClub; paymentRequired?: false }
+  | {
+      paymentRequired: true;
+      pendingId: string;
+      fee: string;
+      kycMethod: 'BVN' | 'NIN';
+      accountName: string;
+      checkout: {
+        id: string;
+        accountNumber: string;
+        bankName: string;
+        accountName: string;
+        amount: string;
+        fee: string;
+        amountPayable: string;
+        expiresAt: string;
+      };
+    };
+
 // Global FossaPay client singleton
 export const fossaClient = new FossaPayClient({
   mode: (process.env.FOSSAPAY_MODE as 'mock' | 'live') || 'mock',
@@ -122,6 +158,7 @@ export class AjoClubStore {
   private clubs = new Map<string, AjoClub>();
   private accountToClubMap = new Map<string, { clubId: string; memberId: string }>();
   private listeners = new Map<string, Set<(club: AjoClub) => void>>();
+  private pendingKycVerifications = new Map<string, PendingKycVerification>();
 
   constructor() {
     // Sample data exists only in the offline sandbox. Live mode starts empty.
@@ -320,9 +357,11 @@ export class AjoClubStore {
     identityNumber: string;
     accountNumber: string;
     bankCode: string;
+    accountName?: string;
+    bankName?: string;
     email?: string;
     phone?: string;
-  }): Promise<{ member: AjoMember; club: AjoClub }> {
+  }): Promise<JoinClubResult> {
     const club = this.clubs.get(params.clubId);
     if (!club) throw new Error(`Club ${params.clubId} not found`);
 
@@ -340,12 +379,81 @@ export class AjoClubStore {
     const bvnOrNinLast4 = cleanNum.slice(-4);
 
     // 1. Verify KYC identity via FossaPay KYC endpoint
-    const kycIdempotencyKey = `ajo_kyc_${club.id}_${bvnOrNinLast4}_${Date.now()}`;
-    const kycResult = await fossaClient.kyc.verifyIdentity(
-      params.kycMethod,
-      cleanNum,
-      kycIdempotencyKey
-    );
+    let kycResult;
+    try {
+      const kycIdempotencyKey = `ajo_kyc_${club.id}_${bvnOrNinLast4}_${Date.now()}`;
+      kycResult = await fossaClient.kyc.verifyIdentity(
+        params.kycMethod,
+        cleanNum,
+        kycIdempotencyKey
+      );
+    } catch (err: any) {
+      const msg = (err?.message || '').toLowerCase();
+      const isBalanceError =
+        msg.includes('insufficient ngn available balance') ||
+        (msg.includes('insufficient') && msg.includes('balance'));
+
+      if (isBalanceError) {
+        // Master wallet has insufficient balance for KYC lookup.
+        // Resolve the payout account name so the user sees who they are verifying for.
+        let accountName = params.accountName || 'Payout Account';
+        try {
+          const bankEnquiry = await fossaClient.transfers.bankEnquiry(params.accountNumber, params.bankCode);
+          if (bankEnquiry?.accountName) accountName = bankEnquiry.accountName;
+        } catch {
+          // Fall back to params.accountName
+        }
+
+        const fee = params.kycMethod === 'NIN' ? '120' : '70';
+        const idempotencyKey = `ajo_kyc_chk_${club.id}_${bvnOrNinLast4}_${Date.now()}`;
+        const checkout = await fossaClient.checkouts.createCheckout(
+          {
+            amount: fee,
+            currency: 'NGN',
+            description: `AjoSphere identity verification fee (${params.kycMethod})`,
+            feeBearer: 'customer',
+          },
+          idempotencyKey
+        );
+
+        const pendingId = `pnd_${crypto.randomBytes(6).toString('hex')}`;
+        this.pendingKycVerifications.set(pendingId, {
+          id: pendingId,
+          clubId: club.id,
+          kycMethod: params.kycMethod,
+          identityNumber: cleanNum,
+          accountNumber: params.accountNumber,
+          bankCode: params.bankCode,
+          email: params.email,
+          phone: params.phone,
+          checkoutId: checkout.id,
+          checkout,
+          fee,
+          accountName,
+          createdAt: new Date().toISOString(),
+        });
+
+        return {
+          paymentRequired: true,
+          pendingId,
+          fee,
+          kycMethod: params.kycMethod,
+          accountName,
+          checkout: {
+            id: checkout.id,
+            accountNumber: checkout.accountNumber,
+            bankName: checkout.bankName,
+            accountName: checkout.accountName,
+            amount: fee,
+            fee: checkout.fee || '100.00',
+            amountPayable: checkout.amountPayable || fee,
+            expiresAt: checkout.expiresAt,
+          },
+        };
+      }
+
+      throw err;
+    }
 
     if (!kycResult.verified) {
       throw new Error(`KYC Verification Failed: Provided ${params.kycMethod} could not be verified`);
@@ -363,22 +471,44 @@ export class AjoClubStore {
     }
 
     // 4. Create customer record in FossaPay
-    const firstName = kycResult.firstName || kycResult.fullName.split(' ')[0];
-    const lastName = kycResult.lastName || kycResult.fullName.split(' ').slice(-1)[0];
-    const customer = await fossaClient.customers.create({
-      email: params.email || `ajo.${bvnOrNinLast4}@example.com`,
-      phoneNumber: params.phone || kycResult.phone || `080${cleanNum.slice(-8)}`,
-      firstName,
-      lastName,
-      dateOfBirth: '1992-06-15',
-      address: 'Broad Street',
-      city: 'Lagos',
-      country: 'Nigeria',
-      metadata: {
-        clubId: club.id,
-        bvnOrNinLast4,
-      },
-    });
+    const firstName = (kycResult.firstName || kycResult.fullName.split(' ')[0]).replace(/\s+/g, '') || 'Member';
+    const lastName = (kycResult.lastName || kycResult.fullName.split(' ').slice(-1)[0]).replace(/\s+/g, '') || 'Ajo';
+    const customerEmail = params.email?.trim() || `member_${bvnOrNinHash.slice(0, 10)}@ajosphere.ng`;
+    const customerPhone = params.phone || kycResult.phone || `080${bvnOrNinLast4}${bvnOrNinHash.slice(0, 4)}`;
+
+    let customer;
+    try {
+      customer = await fossaClient.customers.create({
+        email: customerEmail,
+        phoneNumber: customerPhone,
+        firstName,
+        lastName,
+        dateOfBirth: '1992-06-15',
+        address: 'Broad Street',
+        city: 'Lagos',
+        country: 'Nigeria',
+        metadata: {
+          clubId: club.id,
+          bvnOrNinLast4,
+        },
+      });
+    } catch (err: any) {
+      if (err?.message && err.message.toLowerCase().includes('already exists')) {
+        const list = await fossaClient.customers.list({ limit: 100 });
+        const match = list.find(
+          (c) =>
+            (c.email && c.email.toLowerCase() === customerEmail.toLowerCase()) ||
+            (c.phoneNumber && c.phoneNumber.replace(/\D/g, '') === customerPhone.replace(/\D/g, ''))
+        );
+        if (match) {
+          customer = match;
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
     // 5. Provision permanent dedicated NUBAN virtual account
     const fiatWallet = await fossaClient.wallets.createFiatWallet({
@@ -435,6 +565,59 @@ export class AjoClubStore {
     this.broadcast(club.id);
 
     return { member, club };
+  }
+
+  async confirmKycPayment(pendingId: string, simulate = false): Promise<{ member: AjoMember; club: AjoClub }> {
+    const pending = this.pendingKycVerifications.get(pendingId);
+    if (!pending) {
+      throw new Error('Verification request not found or has expired. Please try joining again.');
+    }
+
+    if (simulate && process.env.FOSSAPAY_MODE !== 'live') {
+      await defaultMockLedger.simulateCheckoutPayment(pending.checkoutId);
+    }
+
+    const chk = await fossaClient.checkouts.getCheckout(pending.checkoutId);
+    if (chk.status !== 'completed') {
+      throw new Error(
+        `Payment of ₦${pending.checkout.amountPayable || pending.fee} to ${pending.checkout.bankName} (${pending.checkout.accountNumber}) has not been confirmed yet. Please complete the transfer and try again.`
+      );
+    }
+
+    // Now that checkout was paid, master wallet has the funds. Run joinClub again:
+    const res = await this.joinClub({
+      clubId: pending.clubId,
+      kycMethod: pending.kycMethod,
+      identityNumber: pending.identityNumber,
+      accountNumber: pending.accountNumber,
+      bankCode: pending.bankCode,
+      email: pending.email,
+      phone: pending.phone,
+    });
+
+    if ('paymentRequired' in res && res.paymentRequired) {
+      throw new Error('Payment received, but wallet balance is still synchronizing. Please try again in a few seconds.');
+    }
+
+    this.pendingKycVerifications.delete(pendingId);
+    return res as { member: AjoMember; club: AjoClub };
+  }
+
+  getPendingKycVerification(id: string): PendingKycVerification | undefined {
+    return this.pendingKycVerifications.get(id);
+  }
+
+  async handleCheckoutCompletedWebhook(checkoutId: string): Promise<void> {
+    for (const [pendingId, pending] of this.pendingKycVerifications.entries()) {
+      if (pending.checkoutId === checkoutId) {
+        try {
+          await this.confirmKycPayment(pendingId);
+        } catch (err) {
+          console.error('[AjoStore] Failed to auto-confirm KYC from webhook:', err);
+        }
+        break;
+      }
+    }
   }
 
   async recordDeposit(accountNumber: string, amount: string, depositRef: string): Promise<boolean> {
@@ -745,9 +928,7 @@ export class AjoClubStore {
   }
 }
 
-// Global singleton attached to globalThis across hot reloads
+// Global singleton attached to globalThis across hot reloads & serverless invocations
 const globalForAjo = globalThis as unknown as { __ajosphereStore?: AjoClubStore };
 export const ajoStore = globalForAjo.__ajosphereStore || new AjoClubStore();
-if (process.env.NODE_ENV !== 'production') {
-  globalForAjo.__ajosphereStore = ajoStore;
-}
+globalForAjo.__ajosphereStore = ajoStore;

@@ -1,5 +1,10 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { FossaPayClient, defaultMockLedger } from '@fossapay/client';
+
+const DB_FILE = path.join(os.tmpdir(), 'safedeal_deals.json');
 
 export type DealStatus =
   | 'DRAFT'
@@ -97,6 +102,118 @@ class SafeDealStore {
       mode: process.env.FOSSAPAY_MODE === 'live' ? 'live' : 'mock',
       mockLedger: defaultMockLedger,
     });
+    this.loadFromDisk();
+    if (this.deals.size === 0) {
+      this.seedDemoDeal();
+    }
+  }
+
+  private loadFromDisk(): void {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          for (const d of data) {
+            if (d && d.id) {
+              this.deals.set(d.id, d);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[SafeDealStore] Failed to load deals from disk:', err);
+    }
+  }
+
+  private saveToDisk(): void {
+    try {
+      const data = Array.from(this.deals.values());
+      fs.writeFileSync(DB_FILE, JSON.stringify(data), 'utf-8');
+    } catch (err) {
+      console.warn('[SafeDealStore] Failed to save deals to disk:', err);
+    }
+  }
+
+  private seedDemoDeal(): void {
+    const demoId = 'sd_demo_camera';
+    if (!this.deals.has(demoId)) {
+      const deal: Deal = {
+        id: demoId,
+        title: 'Fujifilm X-T30 II Camera Kit',
+        description: 'Mint condition mirrorless camera with 18-55mm lens kit and extra battery.',
+        price: '350000',
+        inspectionPeriodSeconds: 86400,
+        seller: {
+          name: 'Chukwudi Nnamdi',
+          phone: '08031234567',
+          email: 'chukwudi@safedeal.ng',
+          bankName: 'Guaranty Trust Bank',
+          bankCode: '058',
+          accountNumber: '0123456789',
+          accountName: 'CHUKWUDI NNAMDI',
+          customerId: 'cus_demo_seller',
+          walletId: 'wal_demo_seller',
+          sellerToken: 'stk_demo_seller_secret',
+        },
+        status: 'DRAFT',
+        history: [
+          {
+            status: 'DRAFT',
+            timestamp: new Date().toISOString(),
+            note: 'Demo escrow deal initialized.',
+          },
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      this.deals.set(demoId, deal);
+      this.saveToDisk();
+    }
+  }
+
+  private async findOrCreateCustomer(params: {
+    name: string;
+    phone: string;
+    email?: string;
+    role: 'seller' | 'buyer';
+  }): Promise<{ id: string; email?: string; phoneNumber?: string }> {
+    const cleanPhone = (params.phone || '').replace(/\D/g, '');
+    const email =
+      params.email?.trim() ||
+      (cleanPhone
+        ? `${params.role}_${cleanPhone}@safedeal.ng`
+        : `${params.role}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}@safedeal.ng`);
+
+    const nameParts = (params.name || '').trim().split(/\s+/).filter(Boolean);
+    const firstName = (nameParts[0] || (params.role === 'seller' ? 'Seller' : 'Buyer')).replace(/\s+/g, '') || 'User';
+    const lastName = ((nameParts.length > 1 ? nameParts[nameParts.length - 1] : '') || (params.role === 'seller' ? 'Merchant' : 'Customer')).replace(/\s+/g, '') || 'Account';
+
+    try {
+      return await this.fossaClient.customers.create({
+        firstName,
+        lastName,
+        email,
+        phoneNumber: params.phone || '08012345678',
+        dateOfBirth: '1990-01-01',
+        address: 'Commercial Avenue',
+        city: 'Lagos',
+        country: 'Nigeria',
+      });
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('already exists')) {
+        const list = await this.fossaClient.customers.list({ limit: 100 });
+        const existing = list.find(
+          (c) =>
+            (c.email && c.email.toLowerCase() === email.toLowerCase()) ||
+            (cleanPhone && c.phoneNumber && c.phoneNumber.replace(/\D/g, '') === cleanPhone)
+        );
+        if (existing) {
+          return existing;
+        }
+      }
+      throw err;
+    }
   }
 
   async createDeal(params: {
@@ -107,7 +224,7 @@ class SafeDealStore {
     seller: {
       name: string;
       phone: string;
-      email: string;
+      email?: string;
       bankName: string;
       bankCode: string;
       accountNumber: string;
@@ -117,16 +234,12 @@ class SafeDealStore {
     const id = `sd_${crypto.randomBytes(4).toString('hex')}`;
     const sellerToken = `stk_${crypto.randomBytes(8).toString('hex')}`;
 
-    // Provision seller customer record & fiat wallet
-    const sellerCust = await this.fossaClient.customers.create({
-      firstName: params.seller.name.split(' ')[0] || params.seller.name,
-      lastName: params.seller.name.split(' ')[1] || 'Seller',
+    // Provision seller customer record & fiat wallet (reusing existing if present)
+    const sellerCust = await this.findOrCreateCustomer({
+      name: params.seller.name,
+      phone: params.seller.phone,
       email: params.seller.email,
-      phoneNumber: params.seller.phone,
-      dateOfBirth: '1990-01-01',
-      address: 'Commercial Avenue',
-      city: 'Lagos',
-      country: 'Nigeria',
+      role: 'seller',
     });
 
     const sellerWallet = await this.fossaClient.wallets.createFiatWallet({
@@ -141,6 +254,7 @@ class SafeDealStore {
       inspectionPeriodSeconds: params.inspectionPeriodSeconds || 86400, // 24 hours default
       seller: {
         ...params.seller,
+        email: sellerCust.email || params.seller.email || 'seller@safedeal.ng',
         customerId: sellerCust.id,
         walletId: sellerWallet.id,
         sellerToken,
@@ -158,19 +272,27 @@ class SafeDealStore {
     };
 
     this.deals.set(id, deal);
+    this.saveToDisk();
     this.notify(deal);
     return deal;
   }
 
   getDeal(id: string): Deal | undefined {
-    return this.deals.get(id);
+    let deal = this.deals.get(id);
+    if (!deal) {
+      this.loadFromDisk();
+      deal = this.deals.get(id);
+    }
+    return deal;
   }
 
   listDeals(): Deal[] {
+    this.loadFromDisk();
     return Array.from(this.deals.values());
   }
 
   listDisputedDeals(): Deal[] {
+    this.loadFromDisk();
     return Array.from(this.deals.values()).filter((d) => d.status === 'DISPUTED');
   }
 
@@ -181,7 +303,7 @@ class SafeDealStore {
     const set = this.subscribers.get(dealId)!;
     set.add(callback);
 
-    const deal = this.deals.get(dealId);
+    const deal = this.getDeal(dealId);
     if (deal) callback(deal);
 
     return () => {
@@ -194,6 +316,7 @@ class SafeDealStore {
 
   private notify(deal: Deal): void {
     deal.updatedAt = new Date().toISOString();
+    this.saveToDisk();
     const set = this.subscribers.get(deal.id);
     if (set) {
       for (const cb of set) {
@@ -229,15 +352,11 @@ class SafeDealStore {
     }
 
     if (!deal.buyer) {
-      const buyerCust = await this.fossaClient.customers.create({
-        firstName: buyer.name.split(' ')[0] || buyer.name,
-        lastName: buyer.name.split(' ')[1] || 'Buyer',
-        phoneNumber: buyer.phone,
+      const buyerCust = await this.findOrCreateCustomer({
+        name: buyer.name,
+        phone: buyer.phone,
         email: buyer.email,
-        dateOfBirth: '1995-01-01',
-        address: 'Marina Street',
-        city: 'Lagos',
-        country: 'Nigeria',
+        role: 'buyer',
       });
 
       const buyerWallet = await this.fossaClient.wallets.createFiatWallet({
@@ -247,7 +366,7 @@ class SafeDealStore {
       deal.buyer = {
         name: buyer.name,
         phone: buyer.phone,
-        email: buyer.email,
+        email: buyerCust.email || buyer.email,
         customerId: buyerCust.id,
         walletId: buyerWallet.id,
       };
@@ -517,9 +636,7 @@ class SafeDealStore {
   }
 }
 
-// Hot-reload global singleton
+// Global singleton attached to globalThis across hot reloads & serverless invocations
 const globalForSafeDeal = globalThis as unknown as { __safeDealStore?: SafeDealStore };
 export const safeDealStore = globalForSafeDeal.__safeDealStore || new SafeDealStore();
-if (process.env.NODE_ENV !== 'production') {
-  globalForSafeDeal.__safeDealStore = safeDealStore;
-}
+globalForSafeDeal.__safeDealStore = safeDealStore;

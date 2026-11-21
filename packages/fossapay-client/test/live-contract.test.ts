@@ -258,6 +258,27 @@ describe('Live contract: customers, wallets, transfers, KYC', () => {
     expect(c).toMatchObject({ id: 'c1', email: 'a@b.co', phoneNumber: '0801' });
   });
 
+  it('lists customers unwrapping pagination envelope { result: [...] }', async () => {
+    const { client } = liveClient(() => ({
+      status: 200,
+      json: {
+        status: 'success',
+        statusCode: 200,
+        data: {
+          result: [
+            { id: 'c1', emailAddress: 'user1@example.com', mobileNumber: '08011111111', firstName: 'User', lastName: 'One' },
+            { id: 'c2', emailAddress: 'user2@example.com', mobileNumber: '08022222222', firstName: 'User', lastName: 'Two' },
+          ],
+          pagination: { page: 1, limit: 10, total: 2 },
+        },
+      },
+    }));
+    const list = await client.customers.list();
+    expect(list).toHaveLength(2);
+    expect(list[0].email).toBe('user1@example.com');
+    expect(list[1].email).toBe('user2@example.com');
+  });
+
   it('creates a fiat wallet with customerId/walletName/walletReference and maps walletId -> id', async () => {
     const { client, calls } = liveClient(() => ({
       status: 201,
@@ -267,6 +288,35 @@ describe('Live contract: customers, wallets, transfers, KYC', () => {
     expect(calls[0].url).toBe(`${BASE}/wallets/fiat/create`);
     expect(calls[0].body).toEqual({ customerId: 'cust-1', walletName: 'Wallet cust-1', walletReference: 'wallet_cust-1' });
     expect(w).toMatchObject({ id: 'w1', accountNumber: '1234567890', bankName: 'Providus' });
+  });
+
+  it('re-uses existing fiat wallet when create fails with "Wallet already found"', async () => {
+    const { client } = liveClient((req) => {
+      if (req.url.endsWith('/wallets/fiat/create')) {
+        return {
+          status: 400,
+          json: { status: 'error', statusCode: 400, message: 'Wallet already found for customer' },
+        };
+      }
+      if (req.url.includes('/wallets/fiat/cust-existing')) {
+        return { status: 404, json: { status: 'error', statusCode: 404, message: 'Wallet not found' } };
+      }
+      if (req.url.endsWith('/wallets/fiat')) {
+        return {
+          status: 200,
+          json: {
+            status: 'success',
+            data: [
+              { bankName: 'Sterling Bank', accountName: 'Wallet cust-existing', accountNumber: '9988776655', balance: '0.00' },
+            ],
+          },
+        };
+      }
+      return { status: 404, json: { status: 'error' } };
+    });
+    const w = await client.wallets.createFiatWallet({ customerId: 'cust-existing' });
+    expect(w.accountNumber).toBe('9988776655');
+    expect(w.bankName).toBe('Sterling Bank');
   });
 
   it('wallet-to-wallet transfer resolves account numbers and posts the documented body', async () => {

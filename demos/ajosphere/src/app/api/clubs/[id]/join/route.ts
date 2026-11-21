@@ -9,7 +9,7 @@ export async function POST(
     const { id } = await params;
     const body = await req.json();
 
-    const { kycMethod, identityNumber, accountNumber, bankCode, email, phone } = body;
+    const { kycMethod, identityNumber, accountNumber, bankCode, accountName, bankName, email, phone } = body;
 
     if (!kycMethod || (kycMethod !== 'BVN' && kycMethod !== 'NIN')) {
       return NextResponse.json(
@@ -32,21 +32,30 @@ export async function POST(
       );
     }
 
-    const { member, club } = await ajoStore.joinClub({
+    const result = await ajoStore.joinClub({
       clubId: id,
       kycMethod,
       identityNumber: String(identityNumber).trim(),
       accountNumber: String(accountNumber).trim(),
       bankCode: String(bankCode).trim(),
+      accountName: accountName ? String(accountName).trim() : undefined,
+      bankName: bankName ? String(bankName).trim() : undefined,
       email,
       phone,
     });
 
+    if ('paymentRequired' in result && result.paymentRequired) {
+      return NextResponse.json({
+        status: 'payment_required',
+        data: result,
+      });
+    }
+
     return NextResponse.json({
       status: 'success',
       data: {
-        member,
-        club,
+        member: result.member,
+        club: result.club,
       },
     });
   } catch (err) {

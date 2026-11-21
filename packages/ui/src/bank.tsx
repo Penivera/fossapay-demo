@@ -30,12 +30,17 @@ export function BankAccountPicker({ value, onChange, label = 'Bank account', dis
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const basePath =
+    typeof window !== 'undefined'
+      ? window.location.pathname.match(/^\/(safedeal|ajosphere|squadpay|near-offramp)/)?.[0] || ''
+      : '';
+
   useEffect(() => {
-    fetch('/api/banks')
+    fetch(`${basePath}/api/banks`)
       .then((r) => r.json())
       .then((res) => res.status === 'success' && Array.isArray(res.data) && setBanks(res.data))
       .catch(() => setError('Could not load the bank list'));
-  }, []);
+  }, [basePath]);
 
   const options = useMemo(() => {
     const q = filter.toLowerCase().trim();
@@ -55,7 +60,7 @@ export function BankAccountPicker({ value, onChange, label = 'Bank account', dis
     setError(null);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch('/api/banks/resolve', {
+        const res = await fetch(`${basePath}/api/banks/resolve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ accountNumber: value.accountNumber, bankCode: value.bankCode }),

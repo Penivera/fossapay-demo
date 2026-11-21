@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
       if (accountNumber && data.amount !== undefined && data.amount !== null) {
         await ajoStore.recordDeposit(accountNumber, String(data.amount), data.reference as string);
       }
+    } else if (payload.eventType === 'checkout.completed') {
+      const data = payload.data as unknown as { id?: string; checkoutId?: string };
+      const chkId = data?.id ?? data?.checkoutId;
+      if (chkId) {
+        await ajoStore.handleCheckoutCompletedWebhook(chkId);
+      }
     } else if (payload.eventType === 'payout.completed') {
       console.log(`[AjoSphere Webhook] Payout ${payload.data.payoutId} confirmed complete`);
     }

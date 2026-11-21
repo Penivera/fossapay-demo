@@ -1,8 +1,8 @@
 'use client';
 
-import React, { use, useState } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { BankAccountPicker, Button, Card, CardTitle, Field, Input, Notice, Page, Rows, Segmented, emptyBankAccount, useMode, type BankAccountValue } from '@fossapay/ui';
 
 export default function JoinClubPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,25 +17,87 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<any | null>(null);
 
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
+
+  const [pendingPayment, setPendingPayment] = useState<any | null>(null);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/clubs/${id}/join`, {
+      const res = await fetch(`${basePath}/api/clubs/${id}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kycMethod, identityNumber: identityNumber.trim(), accountNumber: account.accountNumber, bankCode: account.bankCode }),
+        body: JSON.stringify({
+          kycMethod,
+          identityNumber: identityNumber.trim(),
+          accountNumber: account.accountNumber,
+          bankCode: account.bankCode,
+          accountName: account.accountName,
+          bankName: account.bankName,
+        }),
       });
       const data = await res.json();
-      if (data.status === 'success') setJoined(data.data);
-      else setError(data.message || 'Failed to join');
+      if (data.status === 'success') {
+        setJoined(data.data);
+      } else if (data.status === 'payment_required') {
+        setPendingPayment(data.data);
+        setError(null);
+      } else {
+        setError(data.message || 'Failed to join');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleConfirmPayment = async (simulate = false) => {
+    if (!pendingPayment?.pendingId) return;
+    setVerifyingPayment(true);
+    setError(null);
+    try {
+      const res = await fetch(`${basePath}/api/clubs/${id}/join/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pendingId: pendingPayment.pendingId, simulate }),
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setJoined(data.data);
+        setPendingPayment(null);
+      } else {
+        setError(data.message || 'Payment not confirmed yet. Please complete the transfer and try again.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setVerifyingPayment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!pendingPayment?.pendingId || joined) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${basePath}/api/clubs/${id}/join/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pendingId: pendingPayment.pendingId }),
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          setJoined(data.data);
+          setPendingPayment(null);
+        }
+      } catch {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [id, pendingPayment?.pendingId, joined]);
 
   return (
     <Page narrow className="max-w-xl">
@@ -53,6 +115,95 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
             <p className="tabular mt-1 text-3xl font-semibold tracking-wide text-ink">{joined.member.dedicatedAccountNumber}</p>
           </div>
           <Button size="lg" block onClick={() => router.push(`/club/${id}`)}>Open club dashboard</Button>
+        </Card>
+      ) : pendingPayment ? (
+        <Card className="space-y-6">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset bg-brand/10 text-brand ring-brand/20">
+              Verification Fee Required
+            </span>
+            <h1 className="mt-3 text-title text-ink">Verify your {pendingPayment.kycMethod}</h1>
+            <p className="mt-1 text-sm text-ink-2">
+              Transfer the verification fee to confirm your identity ({pendingPayment.accountName}) and complete joining the club.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-subtle p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">{pendingPayment.checkout.bankName}</span>
+              <span className="text-xs text-muted">Expires in 30m</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="tabular text-3xl font-semibold tracking-wide text-ink">
+                {pendingPayment.checkout.accountNumber}
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(pendingPayment.checkout.accountNumber);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1800);
+                }}
+              >
+                {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+            <div className="space-y-1.5 pt-2 border-t border-line/60 text-xs">
+              <div className="flex items-center justify-between text-muted">
+                <span>Verification fee ({pendingPayment.kycMethod})</span>
+                <span className="tabular">₦{Number(pendingPayment.checkout.amount || pendingPayment.fee).toLocaleString('en-NG')}</span>
+              </div>
+              <div className="flex items-center justify-between text-muted">
+                <span>FossaPay checkout processing fee</span>
+                <span className="tabular">₦{Number(pendingPayment.checkout.fee || 100).toLocaleString('en-NG')}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-line/40 text-sm font-semibold text-ink">
+                <span>Total amount payable</span>
+                <span className="tabular">
+                  ₦{Number(pendingPayment.checkout.amountPayable || pendingPayment.fee).toLocaleString('en-NG')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted">
+            Transfer the exact amount above from your banking app. This bills the minimum amount accepted by FossaPay to cover the {pendingPayment.kycMethod} verification.
+          </p>
+
+          {error && <Notice tone="danger">{error}</Notice>}
+
+          <Button
+            size="lg"
+            block
+            loading={verifyingPayment}
+            onClick={() => handleConfirmPayment(false)}
+          >
+            I have made the transfer
+          </Button>
+
+          {isMock && (
+            <Button
+              variant="soft"
+              block
+              loading={verifyingPayment}
+              onClick={() => handleConfirmPayment(true)}
+            >
+              <FlaskConical className="h-4 w-4" /> Simulate fee payment (Sandbox)
+            </Button>
+          )}
+
+          <Button
+            variant="ghost"
+            block
+            onClick={() => {
+              setPendingPayment(null);
+              setError(null);
+            }}
+          >
+            Cancel and edit details
+          </Button>
         </Card>
       ) : (
         <Card>

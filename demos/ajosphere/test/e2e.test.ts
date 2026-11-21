@@ -60,13 +60,15 @@ describe('AjoSphere E2E Lifecycle & Defaulter Mitigation Suite', () => {
     });
 
     const rawBVN = '22233344455';
-    const { member } = await store.joinClub({
+    const res = await store.joinClub({
       clubId: club.id,
       kycMethod: 'BVN',
       identityNumber: rawBVN,
       bankCode: '058', // GTBank
       accountNumber: '9988776655', // TUNDE BALOGUN
     });
+    if ('paymentRequired' in res) throw new Error('Unexpected paymentRequired');
+    const { member } = res;
 
     expect(member.name).toBe('TUNDE BALOGUN');
     expect(member.bvnOrNinLast4).toBe('4455');
@@ -128,6 +130,7 @@ describe('AjoSphere E2E Lifecycle & Defaulter Mitigation Suite', () => {
         bankCode: data.bankCode,
         accountNumber: data.accountNumber,
       });
+      if ('paymentRequired' in res) throw new Error('Unexpected paymentRequired');
       joinedMembers.push(res.member);
     }
 
@@ -230,5 +233,51 @@ describe('AjoSphere E2E Lifecycle & Defaulter Mitigation Suite', () => {
     // Complete the club
     store.advanceRound(club.id);
     expect(club.status).toBe('COMPLETED');
+  });
+
+  it('prompts user to make payment when KYC lookup balance is insufficient, then confirms join upon payment', async () => {
+    const club = store.createClub({
+      name: 'KYC Fee Flow Club',
+      contributionAmount: '5000.00',
+      totalRounds: 3,
+    });
+
+    // Mock verifyIdentity to simulate insufficient balance on first attempt
+    const originalVerify = fossaClient.kyc.verifyIdentity;
+    let callCount = 0;
+    fossaClient.kyc.verifyIdentity = async (method, idNum, key) => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error('Insufficient NGN available balance for KYC verification');
+      }
+      return originalVerify.call(fossaClient.kyc, method, idNum, key);
+    };
+
+    try {
+      const joinRes = await store.joinClub({
+        clubId: club.id,
+        kycMethod: 'BVN',
+        identityNumber: '22233344455',
+        bankCode: '058',
+        accountNumber: '9988776655', // TUNDE BALOGUN
+      });
+
+      expect('paymentRequired' in joinRes && joinRes.paymentRequired).toBe(true);
+      if (!('paymentRequired' in joinRes) || !joinRes.paymentRequired) return;
+
+      expect(joinRes.fee).toBe('70');
+      expect(joinRes.kycMethod).toBe('BVN');
+      expect(joinRes.checkout.accountNumber).toBeDefined();
+
+      // Attempting confirm before payment fails
+      await expect(store.confirmKycPayment(joinRes.pendingId, false)).rejects.toThrow(/not been confirmed yet/);
+
+      // Simulate payment and confirm
+      const confirmRes = await store.confirmKycPayment(joinRes.pendingId, true);
+      expect(confirmRes.member.name).toBe('TUNDE BALOGUN');
+      expect(confirmRes.member.rotationPosition).toBe(1);
+    } finally {
+      fossaClient.kyc.verifyIdentity = originalVerify;
+    }
   });
 });

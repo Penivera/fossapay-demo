@@ -67,6 +67,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/near-offramp') ? '/near-offramp' : '';
 
   useEffect(() => {
     const t = setInterval(() => setCountdown((p) => (p <= 1 ? 30 : p - 1)), 1000);
@@ -76,14 +77,14 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/banks');
+        const res = await fetch(`${basePath}/api/banks`);
         const data = await res.json();
         if (data.status === 'success' && Array.isArray(data.data)) setBanks(data.data);
       } catch (err) {
         console.error('Failed to load banks:', err);
       }
     })();
-  }, []);
+  }, [basePath]);
 
   // Resolve the account holder name once 10 digits and a bank are present
   useEffect(() => {
@@ -97,7 +98,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
     setResolveError(null);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/banks/resolve', {
+        const res = await fetch(`${basePath}/api/banks/resolve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ accountNumber, bankCode: selectedBankCode }),
@@ -123,7 +124,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
       live = false;
       clearTimeout(timer);
     };
-  }, [accountNumber, selectedBankCode]);
+  }, [accountNumber, selectedBankCode, basePath]);
 
   // Quote
   useEffect(() => {
@@ -137,7 +138,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
     setIsQuoting(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/quote', {
+        const res = await fetch(`${basePath}/api/quote`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ originAsset: selectedAsset, amountIn }),

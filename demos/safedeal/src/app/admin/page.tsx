@@ -6,6 +6,7 @@ import { BankAccountPicker, Badge, Button, Card, Dialog, EmptyState, Notice, Pag
 const naira = (v: number | string) => `₦${Number(v).toLocaleString('en-NG')}`;
 
 export default function AdminMediationPage() {
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/safedeal') ? '/safedeal' : '';
   const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refundDeal, setRefundDeal] = useState<any>(null);
@@ -13,7 +14,7 @@ export default function AdminMediationPage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = () =>
-    fetch('/api/admin/deals')
+    fetch(`${basePath}/api/admin/deals`)
       .then((r) => r.json())
       .then((res) => res.status === 'success' && setDeals(res.data.deals || []))
       .catch(console.error)
@@ -27,7 +28,7 @@ export default function AdminMediationPage() {
     if (!confirm('Release the escrowed funds to the seller?')) return;
     setBusy(id);
     try {
-      await fetch(`/api/deals/${id}/resolve-seller`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: 'Resolved in favor of seller.' }) });
+      await fetch(`${basePath}/api/deals/${id}/resolve-seller`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: 'Resolved in favor of seller.' }) });
       await load();
     } finally {
       setBusy(null);
@@ -39,7 +40,7 @@ export default function AdminMediationPage() {
     if (!refundDeal || !account.accountName) return;
     setBusy(refundDeal.id);
     try {
-      await fetch(`/api/deals/${refundDeal.id}/refund-buyer`, {
+      await fetch(`${basePath}/api/deals/${refundDeal.id}/refund-buyer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountNumber: account.accountNumber, bankCode: account.bankCode, accountName: account.accountName, resolutionNote: 'Refund disbursed to buyer.' }),

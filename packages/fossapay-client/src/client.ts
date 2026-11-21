@@ -176,7 +176,10 @@ export class FossaPayClient {
     // Most endpoints wrap the payload as { status, statusCode, message, data }.
     // A few (e.g. POST /kyc/verifications) return the payload bare, so only unwrap real envelopes.
     const isEnvelope =
-      json && typeof json === 'object' && 'data' in json && ('message' in json || 'success' in json || 'statusCode' in json);
+      json &&
+      typeof json === 'object' &&
+      'data' in json &&
+      ('message' in json || 'success' in json || 'statusCode' in json || 'status' in json);
     return (isEnvelope ? json.data : json) as T;
   }
 
@@ -280,11 +283,18 @@ export class FossaPayClient {
       if (this.mode === 'mock') {
         return this.mockLedger.listCustomers();
       }
-      const res = await this.request<any[]>('/customers', {
+      const res = await this.request<any>('/customers', {
         method: 'GET',
         query: params,
       });
-      return res.map((c) => this.mapCustomer(c));
+      const items: any[] = Array.isArray(res)
+        ? res
+        : Array.isArray((res as any)?.result)
+        ? (res as any).result
+        : Array.isArray((res as any)?.items)
+        ? (res as any).items
+        : [];
+      return items.map((c: any) => this.mapCustomer(c));
     },
   };
 
@@ -297,44 +307,85 @@ export class FossaPayClient {
       if (!data.customerId) {
         throw new FossaPayError('customerId is required to create a live NGN wallet', 400);
       }
-      const res = await this.request<any>('/wallets/fiat/create', {
-        method: 'POST',
-        body: {
+      try {
+        const res = await this.request<any>('/wallets/fiat/create', {
+          method: 'POST',
+          body: {
+            customerId: data.customerId,
+            walletName: data.walletName || `Wallet ${data.customerId}`,
+            walletReference: toReference(data.walletReference, data.customerId, 'wallet'),
+          },
+          idempotencyKey,
+        });
+        return {
+          id: res.walletId ?? res.id,
           customerId: data.customerId,
-          walletName: data.walletName || `Wallet ${data.customerId}`,
-          walletReference: toReference(data.walletReference, data.customerId, 'wallet'),
-        },
-        idempotencyKey,
-      });
-      return {
-        id: res.walletId ?? res.id,
-        customerId: data.customerId,
-        accountNumber: res.accountNumber,
-        accountName: res.accountName,
-        bankName: res.bankName,
-        bankCode: res.bankCode,
-        currency: 'NGN',
-        balance: '0.00',
-        createdAt: new Date().toISOString(),
-      };
+          accountNumber: res.accountNumber,
+          accountName: res.accountName,
+          bankName: res.bankName,
+          bankCode: res.bankCode,
+          currency: 'NGN',
+          balance: '0.00',
+          createdAt: new Date().toISOString(),
+        };
+      } catch (err: any) {
+        if (err.message && (err.message.toLowerCase().includes('already found') || err.message.toLowerCase().includes('already exists'))) {
+          return await this.wallets.getFiatWallet(data.customerId);
+        }
+        throw err;
+      }
     },
 
     getFiatWallet: async (id: string): Promise<FiatWalletRecord> => {
       if (this.mode === 'mock') {
         return this.mockLedger.getFiatWallet(id);
       }
-      const res = await this.request<any>(`/wallets/fiat/${encodeURIComponent(id)}`);
-      return {
-        id: res.id,
-        customerId: res.customerId,
-        accountNumber: res.virtualAccount?.accountNumber,
-        accountName: res.walletName,
-        bankName: res.virtualAccount?.bankName,
-        bankCode: res.virtualAccount?.bankCode,
-        currency: 'NGN',
-        balance: String(res.availableBalance ?? '0.00'),
-        createdAt: res.createdAt ?? new Date().toISOString(),
-      };
+      try {
+        const res = await this.request<any>(`/wallets/fiat/${encodeURIComponent(id)}`);
+        return {
+          id: res.id ?? res.walletId ?? id,
+          customerId: res.customerId,
+          accountNumber: res.virtualAccount?.accountNumber ?? res.accountNumber,
+          accountName: res.walletName ?? res.accountName,
+          bankName: res.virtualAccount?.bankName ?? res.bankName,
+          bankCode: res.virtualAccount?.bankCode ?? res.bankCode,
+          currency: 'NGN',
+          balance: String(res.availableBalance ?? res.balance ?? '0.00'),
+          createdAt: res.createdAt ?? new Date().toISOString(),
+        };
+      } catch (err: any) {
+        if (err.statusCode === 404) {
+          const rawWallets = await this.request<any>('/wallets/fiat');
+          const allWallets: any[] = Array.isArray(rawWallets)
+            ? rawWallets
+            : Array.isArray(rawWallets?.data)
+            ? rawWallets.data
+            : Array.isArray(rawWallets?.result)
+            ? rawWallets.result
+            : [];
+          const found = allWallets.find(
+            (w: any) =>
+              w.accountNumber === id ||
+              (w.accountName && w.accountName.includes(id)) ||
+              w.id === id ||
+              w.walletId === id
+          );
+          if (found) {
+              return {
+                id: found.walletId ?? found.id ?? found.accountNumber,
+                customerId: found.accountName?.replace(/^Wallet\s+/i, '') ?? '',
+                accountNumber: found.accountNumber,
+                accountName: found.accountName,
+                bankName: found.bankName,
+                bankCode: found.bankCode ?? '000',
+                currency: 'NGN',
+                balance: String(found.availableBalance ?? found.balance ?? '0.00'),
+                createdAt: new Date().toISOString(),
+              };
+            }
+        }
+        throw err;
+      }
     },
 
     createCryptoWallet: async (data: CreateCryptoWalletRequest, idempotencyKey?: string): Promise<CryptoWalletRecord> => {

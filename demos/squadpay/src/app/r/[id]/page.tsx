@@ -15,9 +15,10 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   const [openId, setOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/squadpay') ? '/squadpay' : '';
 
   useEffect(() => {
-    const es = new EventSource(`/api/rooms/${roomId}/stream`);
+    const es = new EventSource(`${basePath}/api/rooms/${roomId}/stream`);
     es.onmessage = (ev) => {
       try {
         setRoom(JSON.parse(ev.data));
@@ -25,18 +26,18 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
       setLoading(false);
     };
     es.onerror = () => {
-      fetch(`/api/rooms/${roomId}`)
+      fetch(`${basePath}/api/rooms/${roomId}`)
         .then((r) => r.json())
         .then((res) => res.status === 'success' && setRoom(res.data))
         .finally(() => setLoading(false));
     };
     return () => es.close();
-  }, [roomId]);
+  }, [roomId, basePath]);
 
   const post = async (key: string, path: string, participantId?: string) => {
     setBusy(key);
     try {
-      const res = await fetch(`/api/rooms/${roomId}/${path}`, {
+      const res = await fetch(`${basePath}/api/rooms/${roomId}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: participantId ? JSON.stringify({ participantId }) : undefined,
@@ -52,7 +53,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   if (!room)
     return (
       <Page narrow>
-        <EmptyState title="Room not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href="/" variant="secondary">Start a new split</ButtonLink>} />
+        <EmptyState title="Room not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={`${basePath}/`} variant="secondary">Start a new split</ButtonLink>} />
       </Page>
     );
 
@@ -64,7 +65,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <Page>
-      <a href="/" className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> New split</a>
+      <a href={`${basePath}/`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> New split</a>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-10">
         {/* Summary */}

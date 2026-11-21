@@ -20,6 +20,7 @@ const naira = (v: number | string) => `₦${Number(v).toLocaleString('en-NG')}`;
 export default function AjoHomePage() {
   const router = useRouter();
   const { isMock } = useMode();
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
   const [clubs, setClubs] = useState<ClubSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -27,25 +28,25 @@ export default function AjoHomePage() {
   const [form, setForm] = useState({ name: '', contributionAmount: isMock ? '20000' : '', totalRounds: isMock ? '5' : '' });
 
   useEffect(() => {
-    fetch('/api/clubs')
+    fetch(`${basePath}/api/clubs`)
       .then((r) => r.json())
       .then((d) => d.status === 'success' && setClubs(d.data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [basePath]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setCreating(true);
     try {
-      const res = await fetch('/api/clubs', {
+      const res = await fetch(`${basePath}/api/clubs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: form.name, contributionAmount: form.contributionAmount, totalRounds: Number(form.totalRounds) }),
       });
       const data = await res.json();
-      if (data.status === 'success') router.push(`/club/${data.data.id}`);
+      if (data.status === 'success') router.push(`${basePath}/club/${data.data.id}`);
       else setError(data.message || 'Failed to create club');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
@@ -83,8 +84,8 @@ export default function AjoHomePage() {
                     <p className="tabular text-sm text-muted">{naira(club.contributionAmount)}/week · pot {naira(Number(club.contributionAmount) * club.totalRounds)} · {club.members.length}/{club.totalRounds} members</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {!full && <ButtonLink href={`/club/${club.id}/join`} size="sm" variant="soft">Join</ButtonLink>}
-                    <ButtonLink href={`/club/${club.id}`} size="sm" variant="secondary">Open <ArrowRight className="h-3.5 w-3.5" /></ButtonLink>
+                    {!full && <ButtonLink href={`${basePath}/club/${club.id}/join`} size="sm" variant="soft">Join</ButtonLink>}
+                    <ButtonLink href={`${basePath}/club/${club.id}`} size="sm" variant="secondary">Open <ArrowRight className="h-3.5 w-3.5" /></ButtonLink>
                   </div>
                 </Card>
               );

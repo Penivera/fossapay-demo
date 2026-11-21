@@ -47,6 +47,7 @@ export default function OffRampPage() {
   const [finalReceipt, setFinalReceipt] = useState<any>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/near-offramp') ? '/near-offramp' : '';
 
   // Clean up SSE connection on unmount
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function OffRampPage() {
   const handleInitiate = async (details: any) => {
     try {
       // Step 0: Create Intent Session on Backend
-      const createRes = await fetch('/api/intents/create', {
+      const createRes = await fetch(`${basePath}/api/intents/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,7 +134,7 @@ export default function OffRampPage() {
       const txHash = await signDebit(details.depositAddress, details.amountIn);
 
       // Trigger backend execution
-      await fetch(`/api/intents/${intentId}/execute`, {
+      await fetch(`${basePath}/api/intents/${intentId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ originTxHash: txHash }),
@@ -147,7 +148,7 @@ export default function OffRampPage() {
     if (!sessionId) return;
     setIsRetrying(true);
     try {
-      await fetch(`/api/intents/${sessionId}/retry`, {
+      await fetch(`${basePath}/api/intents/${sessionId}/retry`, {
         method: 'POST',
       });
     } catch (err) {

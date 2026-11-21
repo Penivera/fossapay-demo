@@ -171,4 +171,66 @@ describe('SafeDeal Escrow Lifecycle E2E Suite', () => {
     // 7. Test illegal state transition is strictly blocked server-side
     await expect(safeDealStore.dispatchPackage(dealId)).rejects.toThrow(/Illegal state transition/);
   });
+
+  it('handles deal creation and checkout without emails gracefully without collision', async () => {
+    // Seller creates deal with NO email
+    const req1 = new NextRequest('http://localhost:3001/api/deals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'PlayStation 5 Console',
+        description: 'New sealed',
+        price: '550000',
+        seller: {
+          name: 'Dayo Ade',
+          phone: '08123456789',
+          bankName: 'Commercial Bank',
+          bankCode: '058',
+          accountNumber: '0123456789',
+          accountName: 'DAYO ADE',
+        },
+      }),
+    });
+    const res1 = await createDeal(req1);
+    const json1 = await res1.json();
+    expect(json1.status).toBe('success');
+    expect(json1.data.seller.email).toBe('seller_08123456789@safedeal.ng');
+
+    // A second seller also creates deal with NO email (different phone)
+    const req2 = new NextRequest('http://localhost:3001/api/deals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'MacBook Air M2',
+        description: 'Used clean',
+        price: '850000',
+        seller: {
+          name: 'Ngozi Eze',
+          phone: '08098765432',
+          bankName: 'Commercial Bank',
+          bankCode: '058',
+          accountNumber: '2019283746',
+          accountName: 'NGOZI EZE',
+        },
+      }),
+    });
+    const res2 = await createDeal(req2);
+    const json2 = await res2.json();
+    expect(json2.status).toBe('success');
+    expect(json2.data.seller.email).toBe('seller_08098765432@safedeal.ng');
+
+    // Buyer checks out with NO email
+    const checkoutReq = new NextRequest(`http://localhost:3001/api/deals/${json1.data.id}/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Emeka Okafor',
+        phone: '07011223344',
+      }),
+    });
+    const checkoutRes = await initiateCheckout(checkoutReq, { params: Promise.resolve({ id: json1.data.id }) });
+    const checkoutJson = await checkoutRes.json();
+    expect(checkoutJson.status).toBe('success');
+    expect(checkoutJson.data.buyer.email).toBe('buyer_07011223344@safedeal.ng');
+  });
 });

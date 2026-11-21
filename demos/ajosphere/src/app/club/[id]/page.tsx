@@ -16,9 +16,10 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
 
   useEffect(() => {
-    const es = new EventSource(`/api/clubs/${id}/stream`);
+    const es = new EventSource(`${basePath}/api/clubs/${id}/stream`);
     es.onmessage = (ev) => {
       try {
         setClub(JSON.parse(ev.data));
@@ -27,13 +28,13 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
     };
     es.onerror = () => {
       es.close();
-      fetch(`/api/clubs/${id}`)
+      fetch(`${basePath}/api/clubs/${id}`)
         .then((r) => r.json())
         .then((d) => d.status === 'success' && setClub(d.data))
         .finally(() => setLoading(false));
     };
     return () => es.close();
-  }, [id]);
+  }, [id, basePath]);
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -44,7 +45,7 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   const post = async (path: string, body?: unknown) => {
     setBusy(true);
     try {
-      await fetch(`/api/clubs/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      await fetch(`${basePath}/api/clubs/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     } finally {
       setBusy(false);
     }
@@ -57,7 +58,7 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
     setBusy(true);
     for (const m of club.members) {
       if (!round.contributions.some((c) => c.memberId === m.id)) {
-        await fetch(`/api/clubs/${id}/simulate-deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId: m.id }) });
+        await fetch(`${basePath}/api/clubs/${id}/simulate-deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId: m.id }) });
       }
     }
     setBusy(false);
@@ -67,7 +68,7 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   if (!club)
     return (
       <Page narrow>
-        <EmptyState title="Club not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href="/" variant="secondary">Back to clubs</ButtonLink>} />
+        <EmptyState title="Club not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={`${basePath}/`} variant="secondary">Back to clubs</ButtonLink>} />
       </Page>
     );
 
@@ -81,9 +82,9 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   return (
     <Page>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <a href="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> All clubs</a>
+        <a href={`${basePath}/`} className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> All clubs</a>
         <div className="flex items-center gap-2">
-          {club.members.length < club.totalRounds && <ButtonLink href={`/club/${club.id}/join`} size="sm" variant="soft">Join ({club.members.length}/{club.totalRounds})</ButtonLink>}
+          {club.members.length < club.totalRounds && <ButtonLink href={`${basePath}/club/${club.id}/join`} size="sm" variant="soft">Join ({club.members.length}/{club.totalRounds})</ButtonLink>}
           <Button size="sm" variant="secondary" onClick={() => {
             const basePath = window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
             copy(`${window.location.origin}${basePath}/club/${club.id}/join`, 'invite');
