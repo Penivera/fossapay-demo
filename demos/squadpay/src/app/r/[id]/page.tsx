@@ -34,6 +34,22 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     return () => es.close();
   }, [roomId, basePath]);
 
+  // Active polling to auto-update room when a participant pays
+  useEffect(() => {
+    if (!room || room.status === 'completed' || room.status === 'partially_closed') return;
+    const interval = setInterval(() => {
+      fetch(`${basePath}/api/rooms/${roomId}`)
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.status === 'success' && res.data) {
+            setRoom(res.data);
+          }
+        })
+        .catch(() => null);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [roomId, basePath, room?.status]);
+
   const post = async (key: string, path: string, participantId?: string) => {
     setBusy(key);
     try {

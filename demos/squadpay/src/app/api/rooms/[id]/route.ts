@@ -6,6 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  await squadPayStore.reconcileRoomCheckouts(id).catch(() => null);
   const room = squadPayStore.getRoom(id);
 
   if (!room) {

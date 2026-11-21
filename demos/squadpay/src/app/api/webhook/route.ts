@@ -39,13 +39,24 @@ export async function POST(req: NextRequest) {
       processedEvents.add(eventId);
     }
 
-    // Match reference: squad_<roomId>_<participantId>
+    // Match reference: squad_<roomId>_<participantId> (note that roomId and participantId contain underscores)
     const reference = data?.reference || envelope?.reference;
-    if (eventType === 'checkout.completed' && reference) {
-      const match = reference.match(/^squad_([^_]+)_(.+)$/);
-      if (match) {
-        const roomId = match[1];
-        const participantId = match[2];
+    if (eventType === 'checkout.completed' && reference && reference.startsWith('squad_')) {
+      const rest = reference.slice('squad_'.length);
+      const pIdx = rest.lastIndexOf('_p_');
+      let roomId: string | undefined;
+      let participantId: string | undefined;
+      if (pIdx !== -1) {
+        roomId = rest.slice(0, pIdx);
+        participantId = rest.slice(pIdx + 1);
+      } else {
+        const lastUnder = rest.lastIndexOf('_');
+        if (lastUnder !== -1) {
+          roomId = rest.slice(0, lastUnder);
+          participantId = rest.slice(lastUnder + 1);
+        }
+      }
+      if (roomId && participantId) {
         setTimeout(() => {
           squadPayStore.markParticipantPaid(roomId, participantId).catch(console.error);
         }, 0);
