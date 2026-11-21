@@ -101,7 +101,7 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
 
   return (
     <Page narrow className="max-w-xl">
-      <a href={`/club/${id}`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> Back to club</a>
+      <a href={`${basePath}/club/${id}`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> Back to club</a>
 
       {joined ? (
         <Card className="space-y-6">
