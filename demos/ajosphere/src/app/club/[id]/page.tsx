@@ -68,7 +68,7 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   if (!club)
     return (
       <Page narrow>
-        <EmptyState title="Club not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={`${basePath}/`} variant="secondary">Back to clubs</ButtonLink>} />
+        <EmptyState title="Club not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={basePath || '/'} variant="secondary">Back to clubs</ButtonLink>} />
       </Page>
     );
 
@@ -82,7 +82,7 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   return (
     <Page>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <a href={`${basePath}/`} className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> All clubs</a>
+        <a href={basePath || '/'} className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> All clubs</a>
         <div className="flex items-center gap-2">
           {club.members.length < club.totalRounds && <ButtonLink href={`${basePath}/club/${club.id}/join`} size="sm" variant="soft">Join ({club.members.length}/{club.totalRounds})</ButtonLink>}
           <Button size="sm" variant="secondary" onClick={() => {

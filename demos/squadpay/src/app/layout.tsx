@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <AppShell name="SquadPay" mark="SQ" mode={mode} nav={[{ href: '/', label: 'New split' }]}>
+        <AppShell name="SquadPay" mark="SQ" mode={mode} homeHref="/squadpay" nav={[{ href: '/squadpay', label: 'New split' }]}>
           {children}
         </AppShell>
       </body>

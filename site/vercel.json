@@ -1,5 +1,6 @@
 {
   "cleanUrls": true,
+  "trailingSlash": false,
   "headers": [
     { "source": "/(.*)", "headers": [
       { "key": "X-Content-Type-Options", "value": "nosniff" },
@@ -8,19 +9,29 @@
     { "source": "/images/(.*)", "headers": [ { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" } ] },
     { "source": "/(favicon.ico|favicon.svg|icon.png|apple-touch-icon.png|apple-icon.png)", "headers": [ { "key": "Cache-Control", "value": "public, max-age=86400" } ] }
   ],
+  "redirects": [
+    { "source": "/safedeal/", "destination": "/safedeal", "permanent": false },
+    { "source": "/squadpay/", "destination": "/squadpay", "permanent": false },
+    { "source": "/ajosphere/", "destination": "/ajosphere", "permanent": false },
+    { "source": "/near-offramp/", "destination": "/near-offramp", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/safedeal", "destination": "https://fossapay-safedeal.vercel.app/safedeal" },
+    { "source": "/safedeal/", "destination": "https://fossapay-safedeal.vercel.app/safedeal" },
     { "source": "/safedeal/:path*", "destination": "https://fossapay-safedeal.vercel.app/safedeal/:path*" },
     { "source": "/d/:path*", "destination": "https://fossapay-safedeal.vercel.app/safedeal/d/:path*" },
     { "source": "/admin", "destination": "https://fossapay-safedeal.vercel.app/safedeal/admin" },
     { "source": "/admin/:path*", "destination": "https://fossapay-safedeal.vercel.app/safedeal/admin/:path*" },
     { "source": "/squadpay", "destination": "https://fossapay-squadpay.vercel.app/squadpay" },
+    { "source": "/squadpay/", "destination": "https://fossapay-squadpay.vercel.app/squadpay" },
     { "source": "/squadpay/:path*", "destination": "https://fossapay-squadpay.vercel.app/squadpay/:path*" },
     { "source": "/r/:path*", "destination": "https://fossapay-squadpay.vercel.app/squadpay/r/:path*" },
     { "source": "/ajosphere", "destination": "https://fossapay-ajosphere.vercel.app/ajosphere" },
+    { "source": "/ajosphere/", "destination": "https://fossapay-ajosphere.vercel.app/ajosphere" },
     { "source": "/ajosphere/:path*", "destination": "https://fossapay-ajosphere.vercel.app/ajosphere/:path*" },
     { "source": "/club/:path*", "destination": "https://fossapay-ajosphere.vercel.app/ajosphere/club/:path*" },
     { "source": "/near-offramp", "destination": "https://fossapay-near-offramp.vercel.app/near-offramp" },
+    { "source": "/near-offramp/", "destination": "https://fossapay-near-offramp.vercel.app/near-offramp" },
     { "source": "/near-offramp/:path*", "destination": "https://fossapay-near-offramp.vercel.app/near-offramp/:path*" },
     { "source": "/api/deals", "destination": "https://fossapay-safedeal.vercel.app/safedeal/api/deals" },
     { "source": "/api/deals/:path*", "destination": "https://fossapay-safedeal.vercel.app/safedeal/api/deals/:path*" },

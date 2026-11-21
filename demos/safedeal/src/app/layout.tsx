@@ -26,9 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           name="SafeDeal"
           mark="SD"
           mode={mode}
+          homeHref="/safedeal"
           nav={[
-            { href: '/', label: 'Create deal' },
-            { href: '/admin', label: 'Mediation' },
+            { href: '/safedeal', label: 'Create deal' },
+            { href: '/safedeal/admin', label: 'Mediation' },
           ]}
         >
           {children}

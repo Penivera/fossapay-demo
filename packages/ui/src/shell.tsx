@@ -8,6 +8,7 @@ export interface AppShellProps {
   name: string;
   /** One or two letters shown in the logo mark */
   mark: string;
+  homeHref?: string;
   nav?: Array<{ href: string; label: string }>;
   mode: AppMode;
   /** Right-aligned header slot (e.g. wallet button) */
@@ -46,13 +47,14 @@ export function FossaPayIcon({ className }: { className?: string }) {
  * Page chrome shared by every demo: sticky translucent header, a main region that fills the viewport
  * (so content can centre itself instead of hugging the top), and a quiet footer.
  */
-export function AppShell({ name, mark, nav = [], mode, actions, children }: AppShellProps) {
+export function AppShell({ name, mark, homeHref, nav = [], mode, actions, children }: AppShellProps) {
+  const brandHref = homeHref || (nav[0]?.href ?? '/');
   return (
     <ModeProvider mode={mode}>
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-40 border-b border-line/80 bg-surface/80 backdrop-blur-xl">
           <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between gap-4 px-5 lg:px-8">
-            <a href="/" className="group flex items-center gap-2.5">
+            <a href={brandHref} className="group flex items-center gap-2.5">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-[13px] font-semibold tracking-tight text-white transition group-hover:bg-brand">{mark}</span>
               <span className="text-[17px] font-semibold tracking-tight text-ink">{name}</span>
             </a>

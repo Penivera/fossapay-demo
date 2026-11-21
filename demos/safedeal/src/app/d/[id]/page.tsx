@@ -182,7 +182,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   if (!deal) {
     return (
       <Page narrow>
-        <EmptyState title="Deal not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={`${basePath}/`} variant="secondary">Create a new deal</ButtonLink>} />
+        <EmptyState title="Deal not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={basePath || '/'} variant="secondary">Create a new deal</ButtonLink>} />
       </Page>
     );
   }
@@ -195,7 +195,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <Page>
-      <a href={`${basePath}/`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink">
+      <a href={basePath || '/'} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink">
         <ArrowLeft className="h-4 w-4" /> New deal
       </a>
 

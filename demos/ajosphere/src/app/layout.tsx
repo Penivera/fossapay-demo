@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <AppShell name="AjoSphere" mark="AS" mode={mode} nav={[{ href: '/', label: 'Clubs' }]}>
+        <AppShell name="AjoSphere" mark="AS" mode={mode} homeHref="/ajosphere" nav={[{ href: '/ajosphere', label: 'Clubs' }]}>
           {children}
         </AppShell>
       </body>

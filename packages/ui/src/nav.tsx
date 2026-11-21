@@ -8,7 +8,7 @@ export function NavLinks({ items }: { items: Array<{ href: string; label: string
   return (
     <nav className="flex items-center gap-0.5">
       {items.map((it) => {
-        const active = it.href === '/' ? path === '/' : path.startsWith(it.href);
+        const active = path === it.href;
         return (
           <a
             key={it.href}

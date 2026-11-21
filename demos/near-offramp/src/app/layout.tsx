@@ -27,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ModeProvider mode={mode}>
           <NearProvider>
-            <AppShell name="NairaBridge" mark="NB" mode={mode} actions={<WalletButton />}>
+            <AppShell name="NairaBridge" mark="NB" mode={mode} homeHref="/near-offramp" actions={<WalletButton />}>
               {children}
             </AppShell>
           </NearProvider>

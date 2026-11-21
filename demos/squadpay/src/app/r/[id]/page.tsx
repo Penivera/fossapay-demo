@@ -53,7 +53,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   if (!room)
     return (
       <Page narrow>
-        <EmptyState title="Room not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={`${basePath}/`} variant="secondary">Start a new split</ButtonLink>} />
+        <EmptyState title="Room not found" description="This link may be wrong, or the demo server restarted and cleared its memory." action={<ButtonLink href={basePath || '/'} variant="secondary">Start a new split</ButtonLink>} />
       </Page>
     );
 
@@ -65,7 +65,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <Page>
-      <a href={`${basePath}/`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> New split</a>
+      <a href={basePath || '/'} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> New split</a>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-10">
         {/* Summary */}
