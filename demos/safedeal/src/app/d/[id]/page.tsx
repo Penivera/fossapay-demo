@@ -4,6 +4,7 @@ import React, { use, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { Badge, Button, ButtonLink, Card, Dialog, EmptyState, Field, Input, Notice, Page, Spinner, Steps, Textarea, useMode, type StepItem } from '@fossapay/ui';
+import { saveCachedDeal, getCachedDeal } from '../../../lib/clientStorage';
 
 const FLOW = ['WAITING_PAYMENT', 'ESCROW_LOCKED', 'DISPATCHED', 'INSPECTION_PERIOD', 'RELEASED'] as const;
 const FLOW_LABELS: Array<{ title: string; detail: string }> = [
@@ -38,22 +39,87 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const [remaining, setRemaining] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const isSeller = Boolean(sellerToken && deal?.seller?.sellerToken === sellerToken);
+
   useEffect(() => {
+    let active = true;
+
+    const loadDeal = async () => {
+      try {
+        const res = await fetch(`${basePath}/api/deals/${dealId}`);
+        const data = await res.json().catch(() => null);
+        if (data?.status === 'success' && data.data && active) {
+          setDeal(data.data);
+          saveCachedDeal(data.data, isSeller ? 'seller' : 'buyer');
+          setLoading(false);
+          return;
+        }
+      } catch {}
+
+      // If server doesn't have the deal (e.g. serverless instance recycling), check client cache
+      const cached = getCachedDeal(dealId);
+      if (cached && active) {
+        setDeal(cached);
+        setLoading(false);
+        // Attempt to sync cached deal back to server
+        fetch(`${basePath}/api/deals/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deal: cached }),
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res?.status === 'success' && res.data && active) {
+              setDeal(res.data);
+              saveCachedDeal(res.data, isSeller ? 'seller' : 'buyer');
+            }
+          })
+          .catch(() => {});
+      } else if (active) {
+        setLoading(false);
+      }
+    };
+
+    loadDeal();
+
     const es = new EventSource(`${basePath}/api/deals/${dealId}/stream`);
     es.onmessage = (ev) => {
       try {
-        setDeal(JSON.parse(ev.data));
+        const d = JSON.parse(ev.data);
+        if (active && d?.id) {
+          setDeal(d);
+          saveCachedDeal(d, isSeller ? 'seller' : 'buyer');
+        }
       } catch {}
-      setLoading(false);
+      if (active) setLoading(false);
     };
     es.onerror = () => {
-      fetch(`${basePath}/api/deals/${dealId}`)
-        .then((r) => r.json())
-        .then((res) => res.status === 'success' && setDeal(res.data))
-        .finally(() => setLoading(false));
+      loadDeal();
     };
-    return () => es.close();
-  }, [dealId, basePath]);
+
+    return () => {
+      active = false;
+      es.close();
+    };
+  }, [dealId, basePath, isSeller]);
+
+  // Active polling while WAITING_PAYMENT to auto-reconcile with FossaPay
+  useEffect(() => {
+    if (deal?.status !== 'WAITING_PAYMENT') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${basePath}/api/deals/${dealId}`);
+        const data = await res.json().catch(() => null);
+        if (data?.status === 'success' && data.data?.status && data.data.status !== deal.status) {
+          setDeal(data.data);
+          saveCachedDeal(data.data, isSeller ? 'seller' : 'buyer');
+        }
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [deal?.status, dealId, basePath, isSeller]);
 
   useEffect(() => {
     if (deal?.status !== 'INSPECTION_PERIOD' || !deal.inspectionExpiresAt) {
@@ -66,14 +132,15 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     return () => clearInterval(t);
   }, [deal?.status, deal?.inspectionExpiresAt]);
 
-  const isSeller = Boolean(sellerToken && deal?.seller?.sellerToken === sellerToken);
-
   const act = async (key: string, path: string, init?: RequestInit) => {
     setBusy(key);
     try {
       const res = await fetch(`${basePath}/api/deals/${dealId}/${path}`, { method: 'POST', ...init });
       const json = await res.json().catch(() => null);
-      if (json?.status === 'success' && json.data?.id) setDeal(json.data);
+      if (json?.status === 'success' && json.data?.id) {
+        setDeal(json.data);
+        saveCachedDeal(json.data, isSeller ? 'seller' : 'buyer');
+      }
     } finally {
       setBusy(null);
     }

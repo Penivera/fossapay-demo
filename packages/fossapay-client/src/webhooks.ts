@@ -167,12 +167,13 @@ export function verifyFossaPayWebhookRequest(
   headers: WebhookHeaderSource,
   secret: string
 ): WebhookVerification {
+  const cleanSecret = secret.trim();
   const v2 = readHeader(headers, 'x-fossapay-signature-v2');
-  if (v2 && verifyFossaPayWebhookRaw(rawBody, v2, secret)) {
+  if (v2 && verifyFossaPayWebhookRaw(rawBody, v2, cleanSecret)) {
     return { valid: true, scheme: 'v2' };
   }
   const legacy = readHeader(headers, 'x-fossapay-signature');
-  if (legacy && verifyFossaPayWebhook(rawBody.toString(), legacy, secret)) {
+  if (legacy && verifyFossaPayWebhook(rawBody.toString(), legacy, cleanSecret)) {
     return { valid: true, scheme: 'legacy' };
   }
   return { valid: false, scheme: null };
@@ -186,8 +187,8 @@ export const MOCK_WEBHOOK_SECRET = 'test_webhook_secret_mock_12345';
  * instead of accepting forgeries signed with a public default.
  */
 export function resolveWebhookSecret(env: Record<string, string | undefined> = process.env): string | undefined {
-  const configured = env.FOSSAPAY_WEBHOOK_SECRET;
-  if (configured) return configured;
+  const configured = env.FOSSAPAY_WEBHOOK_SECRET || env.FOSSAPAY_SECRET;
+  if (configured) return configured.trim();
   return env.FOSSAPAY_MODE === 'live' ? undefined : MOCK_WEBHOOK_SECRET;
 }
 

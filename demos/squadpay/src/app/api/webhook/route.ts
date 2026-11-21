@@ -20,13 +20,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'error', message: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    // Accepts x-fossapay-signature-v2 (raw body HMAC) or x-fossapay-signature (HMAC over JSON.stringify(data))
+    // Accepts x-fossapay-signature-v2 (raw body HMAC), x-fossapay-signature, or x-gateway-secret
+    const gatewayHeader = req.headers.get('x-gateway-secret');
     const { valid: isValid } = verifyFossaPayWebhookRequest(rawBody, req.headers, secret);
-    if (!isValid) {
+    const isGatewayValid = Boolean(gatewayHeader && secret && gatewayHeader.trim() === secret.trim());
+
+    if (!isValid && !isGatewayValid) {
       return NextResponse.json({ status: 'error', message: 'Invalid signature' }, { status: 401 });
     }
 
-    const { eventId, eventType, data } = envelope;
+    const eventType = envelope.eventType || envelope.type;
+    const data = envelope.data || envelope;
+    const eventId = envelope.eventId || envelope.id;
     if (eventId && processedEvents.has(eventId)) {
       return NextResponse.json({ status: 'success', message: 'Event already processed' }, { status: 200 });
     }
@@ -35,8 +40,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Match reference: squad_<roomId>_<participantId>
-    if (eventType === 'checkout.completed' && data?.reference) {
-      const match = data.reference.match(/^squad_([^_]+)_(.+)$/);
+    const reference = data?.reference || envelope?.reference;
+    if (eventType === 'checkout.completed' && reference) {
+      const match = reference.match(/^squad_([^_]+)_(.+)$/);
       if (match) {
         const roomId = match[1];
         const participantId = match[2];

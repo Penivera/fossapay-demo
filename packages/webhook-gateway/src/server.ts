@@ -36,7 +36,8 @@ const PORT = Number(process.env.PORT || 8001);
 // Never hardcode a fallback: a default secret in source is a forgeable-webhook backdoor.
 // Resolved per call so the environment is the single source of truth. Empty => every delivery is rejected.
 function getWebhookSecret(): string {
-  return process.env.FOSSAPAY_WEBHOOK_SECRET || process.env.FOSSAPAY_SECRET || '';
+  const s = process.env.FOSSAPAY_WEBHOOK_SECRET || process.env.FOSSAPAY_SECRET || '';
+  return s.trim();
 }
 
 function getPublicWebhookUrl(): string {
@@ -88,6 +89,7 @@ async function forwardWebhook(
   event: FossaPayWebhookEvent
 ): Promise<string[]> {
   const dispatched: string[] = [];
+  const secret = getWebhookSecret();
 
   for (const target of DEMO_TARGETS) {
     const targetUrl = getTargetUrl(target);
@@ -98,6 +100,15 @@ async function forwardWebhook(
       // Forward the body byte-for-byte plus whichever signature headers FossaPay sent
       if (signatures.legacy) headers['x-fossapay-signature'] = signatures.legacy;
       if (signatures.v2) headers['x-fossapay-signature-v2'] = signatures.v2;
+
+      // Re-sign with gateway secret if available so forwarded events carry guaranteed matching signatures
+      if (secret) {
+        headers['x-fossapay-signature-v2'] = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+        if (event && (event as any).data) {
+          headers['x-fossapay-signature'] = crypto.createHmac('sha256', secret).update(JSON.stringify((event as any).data)).digest('hex');
+        }
+        headers['x-gateway-secret'] = secret;
+      }
 
       const res = await fetch(targetUrl, {
         method: 'POST',

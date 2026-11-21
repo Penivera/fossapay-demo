@@ -6,7 +6,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const deal = safeDealStore.getDeal(id);
+  let deal = safeDealStore.getDeal(id);
+
+  if (deal && deal.status === 'WAITING_PAYMENT') {
+    deal = await safeDealStore.reconcileCheckout(id);
+  }
 
   if (!deal) {
     return NextResponse.json({ status: 'error', message: `Deal ${id} not found` }, { status: 404 });

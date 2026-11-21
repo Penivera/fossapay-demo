@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ArrowRight, Check, Copy } from 'lucide-react';
-import { BankAccountPicker, Button, ButtonLink, Card, Field, Input, Intro, Points, Stage, Textarea, emptyBankAccount, useMode, type BankAccountValue } from '@fossapay/ui';
+import React, { useEffect, useState } from 'react';
+import { ArrowRight, Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { Badge, BankAccountPicker, Button, ButtonLink, Card, Field, Input, Intro, Points, Stage, Textarea, emptyBankAccount, useMode, type BankAccountValue } from '@fossapay/ui';
+import { getCachedDeals, saveCachedDeal, removeCachedDeal, type CachedDeal } from '../lib/clientStorage';
 
 function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -41,6 +42,11 @@ export default function CreateDealPage() {
   const [createdDeal, setCreatedDeal] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentDeals, setRecentDeals] = useState<CachedDeal[]>([]);
+
+  useEffect(() => {
+    setRecentDeals(getCachedDeals());
+  }, []);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/safedeal') ? '/safedeal' : '';
@@ -71,8 +77,13 @@ export default function CreateDealPage() {
         }),
       });
       const json = await res.json();
-      if (json.status === 'success') setCreatedDeal(json.data);
-      else setError(json.message || 'Could not create the deal');
+      if (json.status === 'success') {
+        setCreatedDeal(json.data);
+        saveCachedDeal(json.data, 'seller');
+        setRecentDeals(getCachedDeals());
+      } else {
+        setError(json.message || 'Could not create the deal');
+      }
     } catch {
       setError('Network error, please try again');
     } finally {
@@ -145,6 +156,53 @@ export default function CreateDealPage() {
               Create escrow link
             </Button>
           </form>
+        </Card>
+      )}
+      {recentDeals.length > 0 && (
+        <Card className="mt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-ink">My deals</h3>
+              <p className="text-xs text-ink-3">Saved in this browser without an account</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('safedeal_cached_deals');
+                  setRecentDeals([]);
+                }
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+          <div className="divide-y divide-border">
+            {recentDeals.map((d) => (
+              <div key={d.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0 pr-4">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-ink">{d.title}</p>
+                    <Badge tone={d.role === 'seller' ? 'brand' : 'neutral'}>{d.role}</Badge>
+                    <Badge tone={d.status === 'RELEASED' ? 'success' : d.status === 'DISPUTED' ? 'warning' : 'neutral'}>
+                      {d.status.toLowerCase().replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-ink-3 tabular">
+                    ₦{Number(d.price).toLocaleString('en-NG')} · {d.id}
+                  </p>
+                </div>
+                <ButtonLink
+                  href={`${basePath}/d/${d.id}${d.sellerToken ? `?sellerToken=${d.sellerToken}` : ''}`}
+                  variant="secondary"
+                  size="sm"
+                >
+                  View <ExternalLink className="h-3.5 w-3.5" />
+                </ButtonLink>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
     </Stage>

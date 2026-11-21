@@ -10,6 +10,7 @@ import { POST as simulateDelivery } from '../src/app/api/deals/[id]/simulate-del
 import { POST as releaseDeal } from '../src/app/api/deals/[id]/release/route';
 import { POST as disputeDeal } from '../src/app/api/deals/[id]/dispute/route';
 import { POST as refundBuyer } from '../src/app/api/deals/[id]/refund-buyer/route';
+import { POST as syncDeal } from '../src/app/api/deals/sync/route';
 import { GET as getAdminDeals } from '../src/app/api/admin/deals/route';
 import { safeDealStore } from '../src/lib/dealStore';
 
@@ -232,5 +233,49 @@ describe('SafeDeal Escrow Lifecycle E2E Suite', () => {
     const checkoutJson = await checkoutRes.json();
     expect(checkoutJson.status).toBe('success');
     expect(checkoutJson.data.buyer.email).toBe('buyer_07011223344@safedeal.ng');
+  });
+
+  it('syncs client-cached deals and recovers missing sessions across lambda recycling', async () => {
+    const fakeDeal = {
+      id: 'sd_client_cached_test_99',
+      title: 'Vintage Vinyl Player',
+      description: 'Used turntable',
+      price: '55000',
+      inspectionPeriodSeconds: 15,
+      status: 'WAITING_PAYMENT',
+      seller: {
+        name: 'Vinyl Collector',
+        phone: '08012341234',
+        email: 'collector@example.com',
+        bankName: 'Guaranty Trust Bank',
+        bankCode: '058',
+        accountNumber: '9988776655',
+        accountName: 'COLLECTOR',
+        customerId: 'cus_vinyl',
+        walletId: 'wal_vinyl',
+        sellerToken: 'stk_vinyl',
+      },
+      history: [{ status: 'WAITING_PAYMENT', timestamp: new Date().toISOString(), note: 'Created' }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const syncReq = new NextRequest('http://localhost:3001/api/deals/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deal: fakeDeal }),
+    });
+    const syncRes = await syncDeal(syncReq);
+    const syncJson = await syncRes.json();
+    expect(syncJson.status).toBe('success');
+    expect(syncJson.data.id).toBe('sd_client_cached_test_99');
+
+    // getDeal can now retrieve the synced deal
+    const getRes = await getDeal(new NextRequest('http://localhost:3001/api/deals/sd_client_cached_test_99'), {
+      params: Promise.resolve({ id: 'sd_client_cached_test_99' }),
+    });
+    const getJson = await getRes.json();
+    expect(getJson.status).toBe('success');
+    expect(getJson.data.title).toBe('Vintage Vinyl Player');
   });
 });

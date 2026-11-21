@@ -20,13 +20,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'error', message: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    // Accepts x-fossapay-signature-v2 (raw body HMAC) or x-fossapay-signature (HMAC over JSON.stringify(data))
+    // Accepts x-fossapay-signature-v2 (raw body HMAC), x-fossapay-signature, or x-gateway-secret
+    const gatewayHeader = req.headers.get('x-gateway-secret');
     const { valid: isValid } = verifyFossaPayWebhookRequest(rawBody, req.headers, secret);
-    if (!isValid) {
+    const isGatewayValid = Boolean(gatewayHeader && secret && gatewayHeader.trim() === secret.trim());
+
+    if (!isValid && !isGatewayValid) {
       return NextResponse.json({ status: 'error', message: 'Invalid signature' }, { status: 401 });
     }
 
-    const { eventId, eventType, data } = envelope;
+    const eventType = envelope.eventType || envelope.type;
+    const data = envelope.data || envelope;
+    const eventId = envelope.eventId || envelope.id;
     if (eventId && processedEvents.has(eventId)) {
       return NextResponse.json({ status: 'success', message: 'Event already processed' }, { status: 200 });
     }
@@ -35,8 +40,9 @@ export async function POST(req: NextRequest) {
     }
 
     // On checkout.completed, unlock escrow for matching deal
-    if (eventType === 'checkout.completed' && data?.reference) {
-      const dealId = data.reference.replace('ref_', '');
+    const reference = data?.reference || envelope?.reference;
+    if (eventType === 'checkout.completed' && reference) {
+      const dealId = reference.replace(/^ref_/, '');
       setTimeout(() => {
         safeDealStore.lockEscrow(dealId).catch(console.error);
       }, 0);

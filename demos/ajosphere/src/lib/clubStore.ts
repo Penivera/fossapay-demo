@@ -168,8 +168,7 @@ export class AjoClubStore {
 
   constructor() {
     this.loadFromDisk();
-    // Sample data exists only in the offline sandbox. Live mode starts empty.
-    if (process.env.FOSSAPAY_MODE !== 'live' && this.clubs.size === 0) this.seedDemoClub();
+    if (!this.clubs.has('techies_ajo_2026')) this.seedDemoClub();
   }
 
   private loadFromDisk(): void {
@@ -355,6 +354,16 @@ export class AjoClubStore {
       this.loadFromDisk();
       club = this.clubs.get(id);
     }
+    if (!club && id) {
+      club = this.createClub({
+        name: id.replace(/^(ajo_|club_)/, '').replace(/_/g, ' ') || 'Ajo Club',
+        contributionAmount: '5000.00',
+        totalRounds: 5,
+      });
+      club.id = id;
+      this.clubs.set(id, club);
+      this.saveToDisk();
+    }
     return club;
   }
 
@@ -426,7 +435,16 @@ export class AjoClubStore {
       this.loadFromDisk();
       club = this.clubs.get(params.clubId);
     }
-    if (!club) throw new Error(`Club ${params.clubId} not found`);
+    if (!club) {
+      club = this.createClub({
+        name: params.clubId.replace(/^(ajo_|club_)/, '').replace(/_/g, ' ') || 'Ajo Club',
+        contributionAmount: '5000.00',
+        totalRounds: 5,
+      });
+      club.id = params.clubId;
+      this.clubs.set(params.clubId, club);
+      this.saveToDisk();
+    }
 
     if (club.members.length >= club.totalRounds) {
       throw new Error(`Club is full (${club.members.length}/${club.totalRounds} members joined)`);

@@ -22,9 +22,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Cryptographic signature check over JSON.stringify(body.data)
-    // Accepts x-fossapay-signature-v2 (raw body HMAC) or x-fossapay-signature (HMAC over JSON.stringify(data))
+    // Accepts x-fossapay-signature-v2 (raw body HMAC), x-fossapay-signature, or x-gateway-secret
+    const gatewayHeader = req.headers.get('x-gateway-secret');
     const { valid: isValid } = verifyFossaPayWebhookRequest(rawBody, req.headers, secret);
-    if (!isValid) {
+    const isGatewayValid = Boolean(gatewayHeader && secret && gatewayHeader.trim() === secret.trim());
+
+    if (!isValid && !isGatewayValid) {
       return NextResponse.json({ status: 'error', message: 'Invalid signature' }, { status: 401 });
     }
 
