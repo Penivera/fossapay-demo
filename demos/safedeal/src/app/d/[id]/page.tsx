@@ -263,6 +263,25 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                   </div>
                 </div>
                 <p className="text-sm text-muted">The account expires after 30 minutes. This page updates automatically when payment arrives.</p>
+                <Button
+                  size="lg"
+                  block
+                  loading={busy === 'reconcile'}
+                  onClick={() => {
+                    setBusy('reconcile');
+                    fetch(`${basePath}/api/deals/${dealId}`)
+                      .then((r) => r.json())
+                      .then((res) => {
+                        if (res.status === 'success' && res.data) {
+                          setDeal(res.data);
+                          saveCachedDeal(res.data, isSeller ? 'seller' : 'buyer');
+                        }
+                      })
+                      .finally(() => setBusy(null));
+                  }}
+                >
+                  I have paid (Verify transfer)
+                </Button>
                 {isMock && (
                   <Button variant="soft" block loading={busy === 'pay'} onClick={() => act('pay', 'simulate-payment')}>
                     <FlaskConical className="h-4 w-4" /> Simulate buyer payment

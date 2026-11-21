@@ -165,6 +165,21 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
                     </div>
                     <div className="flex items-center gap-2">
                       {paid ? <Badge tone="success" dot>Paid</Badge> : <Badge dot>Pending</Badge>}
+                      {!paid && !disbursed && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busy}
+                          onClick={() => {
+                            fetch(`${basePath}/api/clubs/${id}`)
+                              .then((r) => r.json())
+                              .then((res) => res.status === 'success' && setClub(res.data))
+                              .catch(() => null);
+                          }}
+                        >
+                          Paid (Verify)
+                        </Button>
+                      )}
                       {isMock && !paid && !disbursed && <Button size="sm" variant="soft" disabled={busy} onClick={() => post('simulate-deposit', { memberId: m.id })}>Simulate</Button>}
                     </div>
                   </li>

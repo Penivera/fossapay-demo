@@ -114,7 +114,7 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
             <p className="text-sm text-muted">Your dedicated contribution account · {joined.member.dedicatedBankName}</p>
             <p className="tabular mt-1 text-3xl font-semibold tracking-wide text-ink">{joined.member.dedicatedAccountNumber}</p>
           </div>
-          <Button size="lg" block onClick={() => router.push(`/club/${id}`)}>Open club dashboard</Button>
+          <Button size="lg" block onClick={() => router.push(`${basePath}/club/${id}`)}>Open club dashboard</Button>
         </Card>
       ) : pendingPayment ? (
         <Card className="space-y-6">

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight, Check, Copy, Plus, Trash2 } from 'lucide-react';
 import { BankAccountPicker, Button, ButtonLink, Card, Field, Input, Intro, Notice, Points, Segmented, Stage, emptyBankAccount, useMode, type BankAccountValue } from '@fossapay/ui';
+import { getCachedRooms, saveCachedRoom, type CachedRoom } from '../lib/clientStorage';
 
 type Row = { name: string; amount: string };
 
@@ -22,6 +23,18 @@ export default function CreateRoomPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [cachedRooms, setCachedRooms] = useState<CachedRoom[]>([]);
+
+  useEffect(() => {
+    setCachedRooms(getCachedRooms());
+  }, []);
+
+  const clearCached = () => {
+    try {
+      localStorage.removeItem('squadpay_cached_rooms');
+      setCachedRooms([]);
+    } catch {}
+  };
 
   const setFriend = (i: number, patch: Partial<Row>) => setFriends((f) => f.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const filled = friends.filter((f) => f.name.trim());
@@ -48,8 +61,11 @@ export default function CreateRoomPage() {
         }),
       });
       const json = await res.json();
-      if (json.status === 'success') setCreatedRoom(json.data);
-      else setError(json.message || 'Could not create the room');
+      if (json.status === 'success') {
+        setCreatedRoom(json.data);
+        saveCachedRoom(json.data);
+        setCachedRooms(getCachedRooms());
+      } else setError(json.message || 'Could not create the room');
     } catch {
       setError('Network error, please try again');
     } finally {
@@ -150,6 +166,29 @@ export default function CreateRoomPage() {
               Create room
             </Button>
           </form>
+        </Card>
+      )}
+
+      {cachedRooms.length > 0 && (
+        <Card className="mt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-ink">My splits</h3>
+              <p className="text-xs text-muted">Saved in this browser without an account</p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={clearCached}>Clear</Button>
+          </div>
+          <div className="divide-y divide-line">
+            {cachedRooms.map((r) => (
+              <div key={r.id} className="flex items-center justify-between py-2.5">
+                <div>
+                  <p className="font-medium text-ink">{r.title}</p>
+                  <p className="tabular text-xs text-muted">₦{Number(r.totalAmount).toLocaleString('en-NG')} · {r.id}</p>
+                </div>
+                <ButtonLink href={`${basePath}/r/${r.id}`} size="sm" variant="secondary">View</ButtonLink>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
     </Stage>

@@ -46,7 +46,7 @@ export default function AjoHomePage() {
         body: JSON.stringify({ name: form.name, contributionAmount: form.contributionAmount, totalRounds: Number(form.totalRounds) }),
       });
       const data = await res.json();
-      if (data.status === 'success') router.push(`/club/${data.data.id}`);
+      if (data.status === 'success') router.push(`${basePath}/club/${data.data.id}`);
       else setError(data.message || 'Failed to create club');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');

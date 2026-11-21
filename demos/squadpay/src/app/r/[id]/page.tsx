@@ -3,6 +3,7 @@
 import React, { use, useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { Badge, Button, ButtonLink, Card, EmptyState, Page, Spinner, useMode } from '@fossapay/ui';
+import { saveCachedRoom } from '../../../lib/clientStorage';
 
 const naira = (v: number | string) => `₦${Number(v).toLocaleString('en-NG')}`;
 
@@ -21,14 +22,21 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     const es = new EventSource(`${basePath}/api/rooms/${roomId}/stream`);
     es.onmessage = (ev) => {
       try {
-        setRoom(JSON.parse(ev.data));
+        const parsed = JSON.parse(ev.data);
+        setRoom(parsed);
+        saveCachedRoom(parsed);
       } catch {}
       setLoading(false);
     };
     es.onerror = () => {
       fetch(`${basePath}/api/rooms/${roomId}`)
         .then((r) => r.json())
-        .then((res) => res.status === 'success' && setRoom(res.data))
+        .then((res) => {
+          if (res.status === 'success' && res.data) {
+            setRoom(res.data);
+            saveCachedRoom(res.data);
+          }
+        })
         .finally(() => setLoading(false));
     };
     return () => es.close();
@@ -43,6 +51,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
         .then((res) => {
           if (res.status === 'success' && res.data) {
             setRoom(res.data);
+            saveCachedRoom(res.data);
           }
         })
         .catch(() => null);
@@ -59,7 +68,10 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
         body: participantId ? JSON.stringify({ participantId }) : undefined,
       });
       const json = await res.json().catch(() => null);
-      if (json?.status === 'success' && json.data?.id) setRoom(json.data);
+      if (json?.status === 'success' && json.data?.id) {
+        setRoom(json.data);
+        saveCachedRoom(json.data);
+      }
     } finally {
       setBusy(null);
     }
@@ -156,6 +168,25 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        loading={busy === `reconcile-${p.id}`}
+                        onClick={() => {
+                          setBusy(`reconcile-${p.id}`);
+                          fetch(`${basePath}/api/rooms/${roomId}`)
+                            .then((r) => r.json())
+                            .then((res) => {
+                              if (res.status === 'success' && res.data) {
+                                setRoom(res.data);
+                                saveCachedRoom(res.data);
+                              }
+                            })
+                            .finally(() => setBusy(null));
+                        }}
+                      >
+                        I have paid (Verify transfer)
+                      </Button>
                       {expired && <Button size="sm" loading={busy === `re-${p.id}`} onClick={() => post(`re-${p.id}`, 'regenerate', p.id)}>Renew account</Button>}
                       {isMock && (
                         <>
