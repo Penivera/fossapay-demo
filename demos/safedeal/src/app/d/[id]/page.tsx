@@ -291,11 +291,9 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                   <h2 className="text-lg font-semibold text-ink">On its way</h2>
                   <p className="text-sm text-ink-2">The item is with the courier.</p>
                 </div>
-                {isMock && (
-                  <Button variant="soft" block loading={busy === 'deliver'} onClick={() => act('deliver', 'simulate-delivery')}>
-                    <FlaskConical className="h-4 w-4" /> Simulate courier delivery
-                  </Button>
-                )}
+                <Button size="lg" block loading={busy === 'deliver'} onClick={() => act('deliver', 'simulate-delivery')}>
+                  Confirm package received
+                </Button>
               </div>
             )}
 
