@@ -132,6 +132,10 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       es.onopen = () => {
         if (active) setSseFailed(false);
       };
+      es.addEventListener('unavailable', () => {
+        es?.close();
+        if (active) setSseFailed(true);
+      });
       es.onmessage = (ev) => {
         try {
           const d = JSON.parse(ev.data);

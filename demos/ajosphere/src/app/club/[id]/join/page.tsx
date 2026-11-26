@@ -1,6 +1,7 @@
 'use client';
 
 import React, { use, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { BankAccountPicker, Button, Card, CardTitle, Field, Input, Notice, Page, Rows, Segmented, emptyBankAccount, useMode, type BankAccountValue } from '@fossapay/ui';
@@ -118,7 +119,7 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
 
   return (
     <Page narrow className="max-w-xl">
-      <a href={`${basePath}/club/${id}`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> Back to club</a>
+      <Link href={`/club/${id}`} className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 transition hover:text-ink"><ArrowLeft className="h-4 w-4" /> Back to club</Link>
 
       {joined ? (
         <Card className="space-y-6">

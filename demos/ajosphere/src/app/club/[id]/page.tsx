@@ -16,12 +16,14 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [sseFailed, setSseFailed] = useState(false);
   const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
 
   useEffect(() => {
     let active = true;
     const ac = new AbortController();
     let es: EventSource | null = null;
+    setSseFailed(false);
 
     const init = async () => {
       let resolved: AjoClub | null = null;
@@ -44,6 +46,13 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
       }
 
       es = new EventSource(`${basePath}/api/clubs/${id}/stream`);
+      es.onopen = () => {
+        if (active) setSseFailed(false);
+      };
+      es.addEventListener('unavailable', () => {
+        es?.close();
+        if (active) setSseFailed(true);
+      });
       es.onmessage = (ev) => {
         try {
           const parsed = JSON.parse(ev.data) as AjoClub;
@@ -57,6 +66,7 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
       };
       es.onerror = () => {
         es?.close();
+        if (active) setSseFailed(true);
       };
     };
 
@@ -68,6 +78,35 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
       es?.close();
     };
   }, [id, basePath]);
+
+  // Fallback polling when SSE stream is unavailable on a serverless instance
+  const clubStatus = club?.status;
+  useEffect(() => {
+    if (!sseFailed || !clubStatus || clubStatus === 'COMPLETED') return;
+    let active = true;
+    let inFlight = false;
+    const ac = new AbortController();
+
+    const interval = setInterval(async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
+      try {
+        const r = await fetch(`${basePath}/api/clubs/${id}`, { signal: ac.signal });
+        const d = await r.json().catch(() => null);
+        if (active && d?.status === 'success' && d.data?.id) {
+          setClub(d.data);
+        }
+      } catch {} finally {
+        inFlight = false;
+      }
+    }, 4500);
+
+    return () => {
+      active = false;
+      ac.abort();
+      clearInterval(interval);
+    };
+  }, [sseFailed, clubStatus, id, basePath]);
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);

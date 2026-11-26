@@ -12,11 +12,18 @@ export async function GET(
   const { id } = await params;
   const club = ajoStore.getClub(id);
 
+  const encoder = new TextEncoder();
+
   if (!club) {
-    return new Response('Club not found', { status: 404 });
+    return new Response(encoder.encode('event: unavailable\ndata: {}\n\n'), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+      },
+    });
   }
 
-  const encoder = new TextEncoder();
   let cleanup = () => {};
 
   const stream = new ReadableStream({

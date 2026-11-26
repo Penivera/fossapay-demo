@@ -103,6 +103,10 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
       es.onopen = () => {
         if (active) setSseFailed(false);
       };
+      es.addEventListener('unavailable', () => {
+        es?.close();
+        if (active) setSseFailed(true);
+      });
       es.onmessage = (ev) => {
         try {
           const parsed = JSON.parse(ev.data);

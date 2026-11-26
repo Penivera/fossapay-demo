@@ -12,14 +12,18 @@ export async function GET(
   const { id: dealId } = await params;
   const deal = safeDealStore.getDeal(dealId);
 
+  const encoder = new TextEncoder();
+
   if (!deal) {
-    return new Response(JSON.stringify({ status: 'error', message: 'Deal not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
+    return new Response(encoder.encode('event: unavailable\ndata: {}\n\n'), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+      },
     });
   }
 
-  const encoder = new TextEncoder();
   let cleanup = () => {};
 
   const stream = new ReadableStream({
