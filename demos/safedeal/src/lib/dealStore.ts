@@ -3,18 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { FossaPayClient, defaultMockLedger } from '@fossapay/client';
+import { getDealStatusRank, isTerminalDealStatus, shouldAcceptDealUpdate, type DealStatus } from './dealStatus';
+
+export type { DealStatus };
 
 const DB_FILE = path.join(os.tmpdir(), 'safedeal_deals.json');
-
-export type DealStatus =
-  | 'DRAFT'
-  | 'WAITING_PAYMENT'
-  | 'ESCROW_LOCKED'
-  | 'DISPATCHED'
-  | 'INSPECTION_PERIOD'
-  | 'RELEASED'
-  | 'DISPUTED'
-  | 'REFUNDED';
 
 export interface Deal {
   id: string;
@@ -96,6 +89,7 @@ class SafeDealStore {
   private subscribers = new Map<string, Set<DealSubscriber>>();
   private fossaClient: FossaPayClient;
   private autoReleaseTimers = new Map<string, NodeJS.Timeout>();
+  private reconcileInFlight = new Map<string, Promise<Deal | undefined>>();
 
   constructor() {
     this.fossaClient = new FossaPayClient({
@@ -283,52 +277,38 @@ class SafeDealStore {
       this.loadFromDisk();
       deal = this.deals.get(id);
     }
-    if (!deal && id && (id.startsWith('sd_') || id.startsWith('deal_'))) {
-      deal = {
-        id,
-        title: id.replace(/^(sd_|deal_)/, '').replace(/_/g, ' ') || 'Escrow Deal',
-        description: 'Social commerce escrow transaction',
-        price: '10000',
-        inspectionPeriodSeconds: 86400,
-        seller: {
-          name: 'Seller',
-          phone: '',
-          email: '',
-          bankName: 'Bank',
-          bankCode: '000',
-          accountNumber: '0000000000',
-          accountName: 'SELLER',
-          customerId: `cus_${id}`,
-          walletId: `wal_${id}`,
-          sellerToken: `stk_${id}`,
-        },
-        status: 'WAITING_PAYMENT',
-        history: [{ status: 'WAITING_PAYMENT', timestamp: new Date().toISOString(), note: 'Deal session restored' }],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      this.deals.set(id, deal);
-      this.saveToDisk();
-    }
     return deal;
   }
 
   syncDeal(incoming: Deal): Deal {
-    if (!incoming || !incoming.id) throw new Error('Invalid deal data');
-    const existing = this.deals.get(incoming.id);
-    if (!existing) {
-      this.deals.set(incoming.id, incoming);
-      this.saveToDisk();
-      this.notify(incoming);
-      return incoming;
+    if (!incoming || !incoming.id || !incoming.seller) {
+      throw new Error('Invalid deal data');
     }
-    const incomingTime = new Date(incoming.updatedAt || 0).getTime();
-    const existingTime = new Date(existing.updatedAt || 0).getTime();
-    if (incomingTime >= existingTime) {
-      this.deals.set(incoming.id, incoming);
+    const normalized: Deal = {
+      ...incoming,
+      history: Array.isArray(incoming.history) ? incoming.history : [],
+    };
+    const existing = this.getDeal(normalized.id);
+    if (!existing) {
+      this.deals.set(normalized.id, normalized);
       this.saveToDisk();
-      this.notify(incoming);
-      return incoming;
+      this.notify(normalized, false);
+      return normalized;
+    }
+
+    const existingRank = getDealStatusRank(existing.status);
+    const incomingRank = getDealStatusRank(normalized.status);
+    if (incomingRank < existingRank) {
+      return existing;
+    }
+    if (incomingRank === existingRank && isTerminalDealStatus(existing.status)) {
+      return existing;
+    }
+    if (shouldAcceptDealUpdate(existing, normalized)) {
+      this.deals.set(normalized.id, normalized);
+      this.saveToDisk();
+      this.notify(normalized, false);
+      return normalized;
     }
     return existing;
   }
@@ -338,27 +318,42 @@ class SafeDealStore {
     if (!deal) return undefined;
     if (deal.status !== 'WAITING_PAYMENT') return deal;
 
-    try {
-      const reference = deal.checkout?.reference || `ref_${deal.id}`;
-      const checkout = await this.fossaClient.checkouts.getCheckoutByReference(reference).catch(() => null);
-      if (checkout && checkout.status === 'completed') {
-        if (!deal.checkout) {
-          deal.checkout = {
-            id: checkout.id,
-            reference: checkout.reference,
-            accountNumber: checkout.accountNumber,
-            bankName: checkout.bankName,
-            amountPayable: checkout.amountPayable,
-            expiresAt: checkout.expiresAt,
-          };
-          deal.price = checkout.amount;
+    const pending = this.reconcileInFlight.get(dealId);
+    if (pending) return pending;
+
+    const run = (async () => {
+      try {
+        const reference = deal.checkout?.reference || `ref_${deal.id}`;
+        const checkout = await this.fossaClient.checkouts.getCheckoutByReference(reference).catch(() => null);
+        const latest = this.getDeal(dealId);
+        if (!latest || latest.status !== 'WAITING_PAYMENT') return latest;
+
+        if (checkout && checkout.status === 'completed') {
+          if (!latest.checkout) {
+            latest.checkout = {
+              id: checkout.id,
+              reference: checkout.reference,
+              accountNumber: checkout.accountNumber,
+              bankName: checkout.bankName,
+              amountPayable: checkout.amountPayable,
+              expiresAt: checkout.expiresAt,
+            };
+            latest.price = checkout.amount;
+          }
+          return await this.lockEscrow(latest.id);
         }
-        return await this.lockEscrow(deal.id);
+      } catch (err) {
+        console.warn('[SafeDealStore] Reconcile error:', err);
       }
-    } catch (err) {
-      console.warn('[SafeDealStore] Reconcile error:', err);
+      return this.getDeal(dealId);
+    })();
+
+    this.reconcileInFlight.set(dealId, run);
+    try {
+      return await run;
+    } finally {
+      this.reconcileInFlight.delete(dealId);
     }
-    return deal;
   }
 
   listDeals(): Deal[] {
@@ -378,9 +373,6 @@ class SafeDealStore {
     const set = this.subscribers.get(dealId)!;
     set.add(callback);
 
-    const deal = this.getDeal(dealId);
-    if (deal) callback(deal);
-
     return () => {
       set.delete(callback);
       if (set.size === 0) {
@@ -389,8 +381,10 @@ class SafeDealStore {
     };
   }
 
-  private notify(deal: Deal): void {
-    deal.updatedAt = new Date().toISOString();
+  private notify(deal: Deal, touchTimestamp = true): void {
+    if (touchTimestamp) {
+      deal.updatedAt = new Date().toISOString();
+    }
     this.saveToDisk();
     const set = this.subscribers.get(deal.id);
     if (set) {
@@ -488,6 +482,11 @@ class SafeDealStore {
     const deal = this.getDeal(dealId);
     if (!deal) throw new Error(`Deal ${dealId} not found`);
 
+    // Idempotent if already locked (e.g., concurrent webhook + reconciliation)
+    if (getDealStatusRank(deal.status) >= getDealStatusRank('ESCROW_LOCKED')) {
+      return deal;
+    }
+
     this.validateTransition(deal.status, 'ESCROW_LOCKED');
     deal.status = 'ESCROW_LOCKED';
 
@@ -564,7 +563,7 @@ class SafeDealStore {
     return deal;
   }
 
-  private async checkAndAutoRelease(dealId: string): Promise<void> {
+  async checkAndAutoRelease(dealId: string): Promise<void> {
     const deal = this.getDeal(dealId);
     if (deal && deal.status === 'INSPECTION_PERIOD') {
       console.log(`[SafeDeal] Auto-releasing deal ${dealId} due to inspection expiration`);

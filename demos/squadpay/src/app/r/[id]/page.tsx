@@ -1,9 +1,10 @@
 'use client';
 
-import React, { use, useEffect, useState } from 'react';
+import React, { use, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { Badge, Button, ButtonLink, Card, EmptyState, Page, Spinner, useMode } from '@fossapay/ui';
-import { saveCachedRoom } from '../../../lib/clientStorage';
+import { getCachedRoomSnapshot, saveCachedRoom } from '../../../lib/clientStorage';
+import { isSettledRoomStatus, shouldAcceptRoomUpdate } from '../../../lib/roomStatus';
 
 const naira = (v: number | string) => `₦${Number(v).toLocaleString('en-NG')}`;
 
@@ -16,61 +17,176 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   const [openId, setOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [sseFailed, setSseFailed] = useState(false);
+  const roomRef = useRef<any>(null);
   const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/squadpay') ? '/squadpay' : '';
 
-  useEffect(() => {
-    const es = new EventSource(`${basePath}/api/rooms/${roomId}/stream`);
-    es.onmessage = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.data);
-        setRoom(parsed);
-        saveCachedRoom(parsed);
-      } catch {}
-      setLoading(false);
-    };
-    es.onerror = () => {
-      fetch(`${basePath}/api/rooms/${roomId}`)
-        .then((r) => r.json())
-        .then((res) => {
-          if (res.status === 'success' && res.data) {
-            setRoom(res.data);
-            saveCachedRoom(res.data);
-          }
-        })
-        .finally(() => setLoading(false));
-    };
-    return () => es.close();
-  }, [roomId, basePath]);
+  const applyRoom = useCallback((incoming: any) => {
+    if (!incoming?.id) return null;
+    let accepted: any = roomRef.current;
+    setRoom((prev: any) => {
+      if (!shouldAcceptRoomUpdate(prev, incoming)) {
+        accepted = prev;
+        return prev;
+      }
+      accepted = incoming;
+      roomRef.current = incoming;
+      saveCachedRoom(incoming);
+      return incoming;
+    });
+    return accepted;
+  }, []);
 
-  // Active polling to auto-update room when a participant pays
+  const syncRoomToServer = useCallback(
+    async (snapshot: any, signal?: AbortSignal) => {
+      if (!snapshot?.id || !Array.isArray(snapshot.participants)) return null;
+      try {
+        const res = await fetch(`${basePath}/api/rooms/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot),
+          signal,
+        });
+        const json = await res.json().catch(() => null);
+        if (json?.status === 'success' && json.data?.id) {
+          applyRoom(json.data);
+          return json.data;
+        }
+      } catch {}
+      return null;
+    },
+    [basePath, applyRoom]
+  );
+
   useEffect(() => {
-    if (!room || room.status === 'completed' || room.status === 'partially_closed') return;
-    const interval = setInterval(() => {
-      fetch(`${basePath}/api/rooms/${roomId}`)
-        .then((r) => r.json())
-        .then((res) => {
-          if (res.status === 'success' && res.data) {
-            setRoom(res.data);
-            saveCachedRoom(res.data);
+    let active = true;
+    const ac = new AbortController();
+    let es: EventSource | null = null;
+    setSseFailed(false);
+
+    const init = async () => {
+      let resolved: any = null;
+      try {
+        const res = await fetch(`${basePath}/api/rooms/${roomId}`, { signal: ac.signal });
+        const json = await res.json().catch(() => null);
+        if (json?.status === 'success' && json.data && active) {
+          const cached = getCachedRoomSnapshot(roomId);
+          if (cached && shouldAcceptRoomUpdate(json.data, cached)) {
+            resolved = (await syncRoomToServer(cached, ac.signal)) || cached;
+          } else {
+            resolved = json.data;
+            applyRoom(json.data);
           }
-        })
-        .catch(() => null);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [roomId, basePath, room?.status]);
+        }
+      } catch {
+        if (!active) return;
+      }
+
+      if (!resolved && active) {
+        const cached = getCachedRoomSnapshot(roomId);
+        if (cached) {
+          applyRoom(cached);
+          resolved = cached;
+          await syncRoomToServer(cached, ac.signal);
+        }
+      }
+
+      if (!active) return;
+      setLoading(false);
+
+      const latest = roomRef.current || resolved;
+      if (!latest || isSettledRoomStatus(latest.status)) {
+        return;
+      }
+
+      es = new EventSource(`${basePath}/api/rooms/${roomId}/stream`);
+      es.onopen = () => {
+        if (active) setSseFailed(false);
+      };
+      es.onmessage = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.data);
+          if (active && parsed?.id) {
+            applyRoom(parsed);
+            if (isSettledRoomStatus(parsed.status)) {
+              es?.close();
+            }
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        es?.close();
+        if (active) setSseFailed(true);
+      };
+    };
+
+    init();
+
+    return () => {
+      active = false;
+      ac.abort();
+      es?.close();
+    };
+  }, [roomId, basePath, applyRoom, syncRoomToServer]);
+
+  // Active polling while room is active to auto-reconcile with FossaPay
+  const currentRoomStatus = room?.status as string | undefined;
+  useEffect(() => {
+    if (!currentRoomStatus || isSettledRoomStatus(currentRoomStatus)) return;
+
+    let active = true;
+    let inFlight = false;
+    const ac = new AbortController();
+
+    const poll = async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
+      try {
+        const res = await fetch(`${basePath}/api/rooms/${roomId}`, { signal: ac.signal });
+        const json = await res.json().catch(() => null);
+        if (!active) return;
+        if (json?.status === 'success' && json.data?.id) {
+          applyRoom(json.data);
+        } else if (res.status === 404) {
+          const snapshot = Array.isArray(roomRef.current?.participants) ? roomRef.current : getCachedRoomSnapshot(roomId);
+          if (snapshot) await syncRoomToServer(snapshot, ac.signal);
+        }
+      } catch {} finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = setInterval(poll, sseFailed ? 3000 : 3500);
+    return () => {
+      active = false;
+      ac.abort();
+      clearInterval(interval);
+    };
+  }, [roomId, basePath, currentRoomStatus, sseFailed, applyRoom, syncRoomToServer]);
 
   const post = async (key: string, path: string, participantId?: string) => {
     setBusy(key);
     try {
-      const res = await fetch(`${basePath}/api/rooms/${roomId}/${path}`, {
+      const body = participantId ? JSON.stringify({ participantId }) : undefined;
+      let res = await fetch(`${basePath}/api/rooms/${roomId}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: participantId ? JSON.stringify({ participantId }) : undefined,
+        body,
       });
-      const json = await res.json().catch(() => null);
+      let json = await res.json().catch(() => null);
+      if ((!res.ok || json?.status !== 'success') && /not found/i.test(json?.message || '')) {
+        const snapshot = Array.isArray(roomRef.current?.participants) ? roomRef.current : getCachedRoomSnapshot(roomId);
+        if (snapshot && (await syncRoomToServer(snapshot))) {
+          res = await fetch(`${basePath}/api/rooms/${roomId}/${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+          });
+          json = await res.json().catch(() => null);
+        }
+      }
       if (json?.status === 'success' && json.data?.id) {
-        setRoom(json.data);
-        saveCachedRoom(json.data);
+        applyRoom(json.data);
       }
     } finally {
       setBusy(null);
@@ -178,8 +294,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
                             .then((r) => r.json())
                             .then((res) => {
                               if (res.status === 'success' && res.data) {
-                                setRoom(res.data);
-                                saveCachedRoom(res.data);
+                                applyRoom(res.data);
                               }
                             })
                             .finally(() => setBusy(null));

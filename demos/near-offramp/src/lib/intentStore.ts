@@ -132,12 +132,6 @@ class IntentStore {
     const set = this.subscribers.get(intentId)!;
     set.add(callback);
 
-    // Initial push if session exists
-    const session = this.sessions.get(intentId);
-    if (session) {
-      callback(session);
-    }
-
     return () => {
       set.delete(callback);
       if (set.size === 0) {

@@ -1,3 +1,5 @@
+import { shouldAcceptDealUpdate } from './dealStatus';
+
 export interface CachedDeal {
   id: string;
   title: string;
@@ -12,6 +14,8 @@ export interface CachedDeal {
     amountPayable?: string;
     expiresAt?: string;
   };
+  /** Full deal snapshot so client sync restores seller, buyer, history, and payout refs cleanly. */
+  snapshot?: any;
   updatedAt: string;
 }
 
@@ -34,12 +38,24 @@ export function getCachedDeal(id: string): CachedDeal | undefined {
   return deals.find((d) => d.id === id);
 }
 
+export function getCachedDealSnapshot(id: string): any | undefined {
+  const entry = getCachedDeal(id);
+  if (!entry) return undefined;
+  return entry.snapshot && entry.snapshot.seller ? entry.snapshot : undefined;
+}
+
 export function saveCachedDeal(deal: any, role: 'seller' | 'buyer' = 'buyer'): void {
   if (typeof window === 'undefined' || !deal || !deal.id) return;
   try {
     const existing = getCachedDeals();
-    const token = deal.seller?.sellerToken || deal.sellerToken;
-    const isSeller = role === 'seller' || Boolean(token);
+    const prev = existing.find((d) => d.id === deal.id);
+    const prevComparable = prev?.snapshot || prev;
+    if (prevComparable && !shouldAcceptDealUpdate(prevComparable, deal)) {
+      return;
+    }
+
+    const token = deal.seller?.sellerToken || deal.sellerToken || prev?.sellerToken;
+    const isSeller = role === 'seller' || prev?.role === 'seller' || Boolean(token);
 
     const entry: CachedDeal = {
       id: deal.id,
@@ -57,7 +73,8 @@ export function saveCachedDeal(deal: any, role: 'seller' | 'buyer' = 'buyer'): v
             expiresAt: deal.checkout.expiresAt,
           }
         : undefined,
-      updatedAt: new Date().toISOString(),
+      snapshot: deal.seller ? deal : prev?.snapshot,
+      updatedAt: deal.updatedAt || new Date().toISOString(),
     };
 
     const remaining = existing.filter((d) => d.id !== deal.id);

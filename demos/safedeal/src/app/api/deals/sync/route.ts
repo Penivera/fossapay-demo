@@ -4,7 +4,7 @@ import { safeDealStore } from '../../../../lib/dealStore';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    if (!body?.deal?.id) {
+    if (!body?.deal?.id || !body?.deal?.seller) {
       return NextResponse.json({ status: 'error', message: 'Missing deal payload' }, { status: 400 });
     }
     const synced = safeDealStore.syncDeal(body.deal);

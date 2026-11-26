@@ -11,6 +11,10 @@ export async function GET(
   if (deal && deal.status === 'WAITING_PAYMENT') {
     deal = await safeDealStore.reconcileCheckout(id);
   }
+  if (deal && deal.status === 'INSPECTION_PERIOD' && deal.inspectionExpiresAt && Date.now() >= new Date(deal.inspectionExpiresAt).getTime()) {
+    await safeDealStore.checkAndAutoRelease(id).catch(() => null);
+    deal = safeDealStore.getDeal(id);
+  }
 
   if (!deal) {
     return NextResponse.json({ status: 'error', message: `Deal ${id} not found` }, { status: 404 });

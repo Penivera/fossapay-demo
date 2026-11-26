@@ -1,6 +1,6 @@
 'use client';
 
-import React, { use, useEffect, useState } from 'react';
+import React, { use, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { BankAccountPicker, Button, Card, CardTitle, Field, Input, Notice, Page, Rows, Segmented, emptyBankAccount, useMode, type BankAccountValue } from '@fossapay/ui';
@@ -22,6 +22,7 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
   const [pendingPayment, setPendingPayment] = useState<any | null>(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [copied, setCopied] = useState(false);
+  const verifyingRef = useRef(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +58,8 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
   };
 
   const handleConfirmPayment = async (simulate = false) => {
-    if (!pendingPayment?.pendingId) return;
+    if (!pendingPayment?.pendingId || verifyingRef.current) return;
+    verifyingRef.current = true;
     setVerifyingPayment(true);
     setError(null);
     try {
@@ -76,28 +78,43 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
+      verifyingRef.current = false;
       setVerifyingPayment(false);
     }
   };
 
   useEffect(() => {
     if (!pendingPayment?.pendingId || joined) return;
+    let active = true;
+    let inFlight = false;
+    const ac = new AbortController();
+
     const interval = setInterval(async () => {
+      if (!active || inFlight || verifyingRef.current) return;
+      inFlight = true;
       try {
         const res = await fetch(`${basePath}/api/clubs/${id}/join/confirm`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pendingId: pendingPayment.pendingId }),
+          signal: ac.signal,
         });
         const data = await res.json();
-        if (data.status === 'success') {
+        if (active && data.status === 'success') {
           setJoined(data.data);
           setPendingPayment(null);
         }
-      } catch {}
+      } catch {} finally {
+        inFlight = false;
+      }
     }, 4000);
-    return () => clearInterval(interval);
-  }, [id, pendingPayment?.pendingId, joined]);
+
+    return () => {
+      active = false;
+      ac.abort();
+      clearInterval(interval);
+    };
+  }, [id, basePath, pendingPayment?.pendingId, joined]);
 
   return (
     <Page narrow className="max-w-xl">

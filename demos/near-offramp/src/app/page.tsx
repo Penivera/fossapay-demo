@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Intro, Points, Stage } from '@fossapay/ui';
+import { Intro, Notice, Points, Stage, useMode } from '@fossapay/ui';
 import { OffRampCard } from '../components/OffRampCard';
 import { TelemetryTerminal, TelemetryStep } from '../components/TelemetryTerminal';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -12,6 +12,7 @@ type ScreenState = 'input' | 'telemetry' | 'receipt';
 export default function OffRampPage() {
   const [screenState, setScreenState] = useState<ScreenState>('input');
   const { signDebit } = useNear();
+  const { isLive } = useMode();
 
   // Active Execution Telemetry
   const [sessionId, setSessionId] = useState('');
@@ -96,7 +97,7 @@ export default function OffRampPage() {
         eventSourceRef.current.close();
       }
 
-      const es = new EventSource(`/api/intents/${intentId}/stream`);
+      const es = new EventSource(`${basePath}/api/intents/${intentId}/stream`);
       eventSourceRef.current = es;
 
       es.onmessage = (event) => {
@@ -192,7 +193,16 @@ export default function OffRampPage() {
         </Intro>
       }
     >
-      {screenState === 'input' && <OffRampCard onInitiate={handleInitiate} />}
+      {screenState === 'input' && (
+        <div className="space-y-4">
+          {isLive && (
+            <Notice tone="warning" title="Reference code only — live demo disabled">
+              This project is provided solely as reference code for how to implement a cross-chain off-ramp with FossaPay. It is greyed out because the master wallet does not hold enough liquidity to settle live payouts.
+            </Notice>
+          )}
+          <OffRampCard onInitiate={handleInitiate} disabled={isLive} />
+        </div>
+      )}
 
       {screenState === 'telemetry' && (
         <TelemetryTerminal steps={telemetrySteps} progressPercent={progressPercent} sessionId={sessionId} onRetry={handleRetry} isRetrying={isRetrying} />

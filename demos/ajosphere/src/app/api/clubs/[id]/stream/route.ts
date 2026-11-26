@@ -17,34 +17,45 @@ export async function GET(
   }
 
   const encoder = new TextEncoder();
+  let cleanup = () => {};
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+
       // Send initial snapshot
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(club)}\n\n`));
 
       const unsubscribe = ajoStore.subscribe(id, (updatedClub) => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(updatedClub)}\n\n`));
         } catch {
-          unsubscribe();
+          cleanup();
         }
       });
 
       // Keepalive heartbeat every 15s
       const interval = setInterval(() => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(': keepalive\n\n'));
         } catch {
-          clearInterval(interval);
-          unsubscribe();
+          cleanup();
         }
       }, 15000);
 
-      _req.signal.addEventListener('abort', () => {
+      cleanup = () => {
+        if (closed) return;
+        closed = true;
         clearInterval(interval);
         unsubscribe();
-      });
+      };
+
+      _req.signal.addEventListener('abort', cleanup);
+    },
+    cancel() {
+      cleanup();
     },
   });
 

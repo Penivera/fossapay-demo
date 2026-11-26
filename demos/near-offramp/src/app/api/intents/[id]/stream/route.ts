@@ -20,6 +20,7 @@ export async function GET(
   }
 
   const encoder = new TextEncoder();
+  let cleanup = () => {};
 
   const stream = new ReadableStream({
     start(controller) {
@@ -27,31 +28,37 @@ export async function GET(
       const initialPayload = `data: ${JSON.stringify(session)}\n\n`;
       controller.enqueue(encoder.encode(initialPayload));
 
-      // Subscribe to updates
+      let closed = false;
       const unsubscribe = intentStore.subscribe(intentId, (updated) => {
+        if (closed) return;
         try {
           const payload = `data: ${JSON.stringify(updated)}\n\n`;
           controller.enqueue(encoder.encode(payload));
         } catch {
-          // Client disconnected
+          cleanup();
         }
       });
 
-      // Keep connection alive with heartbeat
       const heartbeat = setInterval(() => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(': heartbeat\n\n'));
         } catch {
-          clearInterval(heartbeat);
-          unsubscribe();
+          cleanup();
         }
       }, 15000);
 
-      // Clean up when client disconnects
-      return () => {
+      cleanup = () => {
+        if (closed) return;
+        closed = true;
         clearInterval(heartbeat);
         unsubscribe();
       };
+
+      _req.signal.addEventListener('abort', cleanup);
+    },
+    cancel() {
+      cleanup();
     },
   });
 

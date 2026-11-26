@@ -13,6 +13,7 @@ import { POST as refundBuyer } from '../src/app/api/deals/[id]/refund-buyer/rout
 import { POST as syncDeal } from '../src/app/api/deals/sync/route';
 import { GET as getAdminDeals } from '../src/app/api/admin/deals/route';
 import { safeDealStore } from '../src/lib/dealStore';
+import { shouldAcceptDealUpdate } from '../src/lib/dealStatus';
 
 describe('SafeDeal Escrow Lifecycle E2E Suite', () => {
   it('runs complete happy path: creation -> escrow lock -> dispatch -> inspect -> release', async () => {
@@ -277,5 +278,47 @@ describe('SafeDeal Escrow Lifecycle E2E Suite', () => {
     const getJson = await getRes.json();
     expect(getJson.status).toBe('success');
     expect(getJson.data.title).toBe('Vintage Vinyl Player');
+  });
+
+  it('returns 404 for unknown deals and never regresses terminal/advanced deal status', async () => {
+    const missingRes = await getDeal(new NextRequest('http://localhost:3001/api/deals/sd_does_not_exist_999'), {
+      params: Promise.resolve({ id: 'sd_does_not_exist_999' }),
+    });
+    expect(missingRes.status).toBe(404);
+
+    const deal = await safeDealStore.createDeal({
+      title: 'Monotonic State Item',
+      description: 'Test item',
+      price: '500',
+      seller: {
+        name: 'Seller Mono',
+        phone: '08011112222',
+        bankName: 'GTBank',
+        bankCode: '058',
+        accountNumber: '9988776655',
+        accountName: 'TUNDE BALOGUN',
+      },
+    });
+
+    await safeDealStore.initiateCheckout(deal.id, { name: 'Buyer Mono', phone: '08033334444' });
+    const locked = await safeDealStore.lockEscrow(deal.id);
+    // Repeated lockEscrow should be idempotent
+    const lockedAgain = await safeDealStore.lockEscrow(deal.id);
+    expect(lockedAgain.status).toBe('ESCROW_LOCKED');
+
+    await safeDealStore.dispatchPackage(deal.id);
+    await safeDealStore.startInspection(deal.id);
+    const released = await safeDealStore.releaseFunds(deal.id);
+    expect(released.status).toBe('RELEASED');
+
+    // Syncing an older WAITING_PAYMENT snapshot (even with a newer timestamp) must not regress RELEASED
+    const staleSnapshot = {
+      ...locked,
+      status: 'WAITING_PAYMENT' as const,
+      updatedAt: new Date(Date.now() + 60_000).toISOString(),
+    };
+    expect(shouldAcceptDealUpdate(released, staleSnapshot)).toBe(false);
+    const synced = safeDealStore.syncDeal(staleSnapshot);
+    expect(synced.status).toBe('RELEASED');
   });
 });

@@ -12,9 +12,10 @@ import {
   addMoney,
   verifySum,
 } from '@fossapay/client';
+import { isSettledRoomStatus, shouldAcceptRoomUpdate, type RoomStatus } from './roomStatus';
 
 export type SplitMode = 'equal' | 'itemized';
-export type RoomStatus = 'active' | 'completed' | 'partially_closed';
+export type { RoomStatus };
 export type ParticipantStatus = 'pending' | 'checkout_generated' | 'paid' | 'expired' | 'unsettled';
 
 export interface ParticipantItem {
@@ -76,6 +77,7 @@ class SquadPayStore {
   private rooms = new Map<string, Room>();
   private subscribers = new Map<string, Set<RoomSubscriber>>();
   private fossaClient: FossaPayClient;
+  private reconcileInFlight = new Map<string, Promise<Room | undefined>>();
 
   constructor() {
     this.fossaClient = new FossaPayClient({
@@ -205,64 +207,24 @@ class SquadPayStore {
       this.loadFromDisk();
       room = this.rooms.get(id);
     }
-    if (!room && id && (id.startsWith('sq_') || id.startsWith('room_'))) {
-      room = {
-        id,
-        title: 'Squad Split',
-        totalAmount: '1000.00',
-        splitMode: 'equal',
-        status: 'active',
-        host: {
-          name: 'Host',
-          phone: '08012345678',
-          bankName: 'Commercial Bank',
-          bankCode: '000',
-          accountNumber: '0000000000',
-          accountName: 'HOST',
-        },
-        participants: [
-          { id: 'p_1', name: 'Host', amount: '500.00', status: 'pending' },
-          {
-            id: 'p_2',
-            name: 'Friend',
-            amount: '500.00',
-            status: 'checkout_generated',
-            checkout: {
-              id: '',
-              reference: `squad_${id}_p_2`,
-              accountNumber: '',
-              bankName: 'Sterling Bank',
-              amountPayable: '600.00',
-              expiresAt: new Date(Date.now() + 1800000).toISOString(),
-              attempt: 1,
-            },
-          },
-        ],
-        collectedAmount: '0.00',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      this.rooms.set(id, room);
-      this.saveToDisk();
-    }
     return room;
   }
 
   syncRoom(incoming: Room): Room {
-    if (!incoming || !incoming.id) throw new Error('Invalid room data');
-    const existing = this.rooms.get(incoming.id);
+    if (!incoming || !incoming.id || !Array.isArray(incoming.participants)) {
+      throw new Error('Invalid room data');
+    }
+    const existing = this.getRoom(incoming.id);
     if (!existing) {
       this.rooms.set(incoming.id, incoming);
       this.saveToDisk();
-      this.notify(incoming);
+      this.notify(incoming, false);
       return incoming;
     }
-    const incomingTime = new Date(incoming.updatedAt || 0).getTime();
-    const existingTime = new Date(existing.updatedAt || 0).getTime();
-    if (incomingTime >= existingTime) {
+    if (shouldAcceptRoomUpdate(existing, incoming)) {
       this.rooms.set(incoming.id, incoming);
       this.saveToDisk();
-      this.notify(incoming);
+      this.notify(incoming, false);
       return incoming;
     }
     return existing;
@@ -280,9 +242,6 @@ class SquadPayStore {
     const set = this.subscribers.get(roomId)!;
     set.add(callback);
 
-    const room = this.rooms.get(roomId);
-    if (room) callback(room);
-
     return () => {
       set.delete(callback);
       if (set.size === 0) {
@@ -291,8 +250,10 @@ class SquadPayStore {
     };
   }
 
-  private notify(room: Room): void {
-    room.updatedAt = new Date().toISOString();
+  private notify(room: Room, touchTimestamp = true): void {
+    if (touchTimestamp) {
+      room.updatedAt = new Date().toISOString();
+    }
     this.saveToDisk();
     const set = this.subscribers.get(room.id);
     if (set) {
@@ -314,7 +275,7 @@ class SquadPayStore {
     participantId: string,
     isRegeneration = false
   ): Promise<Room> {
-    const room = this.rooms.get(roomId);
+    const room = this.getRoom(roomId);
     if (!room) throw new Error(`Room ${roomId} not found`);
 
     const participant = room.participants.find((p) => p.id === participantId);
@@ -359,7 +320,7 @@ class SquadPayStore {
    * Mark participant paid (triggered by webhook or simulated bank transfer)
    */
   async markParticipantPaid(roomId: string, participantId: string): Promise<Room> {
-    const room = this.rooms.get(roomId);
+    const room = this.getRoom(roomId);
     if (!room) throw new Error(`Room ${roomId} not found`);
 
     const participant = room.participants.find((p) => p.id === participantId);
@@ -395,7 +356,7 @@ class SquadPayStore {
    * Simulates checkout expiry for a participant
    */
   async simulateParticipantExpiry(roomId: string, participantId: string): Promise<Room> {
-    const room = this.rooms.get(roomId);
+    const room = this.getRoom(roomId);
     if (!room) throw new Error(`Room ${roomId} not found`);
 
     const participant = room.participants.find((p) => p.id === participantId);
@@ -415,7 +376,7 @@ class SquadPayStore {
    * Unpaid participants are marked "unsettled".
    */
   async partialCloseAndWithdraw(roomId: string): Promise<Room> {
-    const room = this.rooms.get(roomId);
+    const room = this.getRoom(roomId);
     if (!room) throw new Error(`Room ${roomId} not found`);
 
     if (room.status === 'completed' || room.status === 'partially_closed') {
@@ -443,21 +404,33 @@ class SquadPayStore {
   async reconcileRoomCheckouts(roomId: string): Promise<Room | undefined> {
     const room = this.getRoom(roomId);
     if (!room) return undefined;
-    if (room.status === 'completed') return room;
+    if (isSettledRoomStatus(room.status)) return room;
 
-    for (const p of room.participants) {
-      if (p.status === 'checkout_generated' && p.checkout?.reference) {
-        try {
-          const checkout = await this.fossaClient.checkouts.getCheckoutByReference(p.checkout.reference).catch(() => null);
-          if (checkout && checkout.status === 'completed') {
-            await this.markParticipantPaid(roomId, p.id);
+    const pending = this.reconcileInFlight.get(roomId);
+    if (pending) return pending;
+
+    const run = (async () => {
+      for (const p of room.participants) {
+        if (p.status === 'checkout_generated' && p.checkout?.reference) {
+          try {
+            const checkout = await this.fossaClient.checkouts.getCheckoutByReference(p.checkout.reference).catch(() => null);
+            if (checkout && checkout.status === 'completed') {
+              await this.markParticipantPaid(roomId, p.id);
+            }
+          } catch (err) {
+            console.warn('[SquadPayStore] Reconcile error for participant', p.id, err);
           }
-        } catch (err) {
-          console.warn('[SquadPayStore] Reconcile error for participant', p.id, err);
         }
       }
+      return this.getRoom(roomId);
+    })();
+
+    this.reconcileInFlight.set(roomId, run);
+    try {
+      return await run;
+    } finally {
+      this.reconcileInFlight.delete(roomId);
     }
-    return this.getRoom(roomId);
   }
 
   /**
@@ -465,7 +438,7 @@ class SquadPayStore {
    * Strictly uses idempotency key squad_payout_<roomId>. Retries safely return existing payout!
    */
   async settleHostPayout(roomId: string, isPartial = false): Promise<Room> {
-    const room = this.rooms.get(roomId);
+    const room = this.getRoom(roomId);
     if (!room) throw new Error(`Room ${roomId} not found`);
 
     if (room.payout && room.payout.status === 'completed') {

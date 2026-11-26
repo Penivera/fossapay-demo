@@ -19,21 +19,54 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/ajosphere') ? '/ajosphere' : '';
 
   useEffect(() => {
-    const es = new EventSource(`${basePath}/api/clubs/${id}/stream`);
-    es.onmessage = (ev) => {
+    let active = true;
+    const ac = new AbortController();
+    let es: EventSource | null = null;
+
+    const init = async () => {
+      let resolved: AjoClub | null = null;
       try {
-        setClub(JSON.parse(ev.data));
-      } catch {}
+        const r = await fetch(`${basePath}/api/clubs/${id}`, { signal: ac.signal });
+        const d = await r.json().catch(() => null);
+        if (d?.status === 'success' && d.data && active) {
+          resolved = d.data;
+          setClub(d.data);
+        }
+      } catch {
+        if (!active) return;
+      }
+
+      if (!active) return;
       setLoading(false);
+
+      if (!resolved || resolved.status === 'COMPLETED') {
+        return;
+      }
+
+      es = new EventSource(`${basePath}/api/clubs/${id}/stream`);
+      es.onmessage = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.data) as AjoClub;
+          if (active && parsed?.id) {
+            setClub(parsed);
+            if (parsed.status === 'COMPLETED') {
+              es?.close();
+            }
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        es?.close();
+      };
     };
-    es.onerror = () => {
-      es.close();
-      fetch(`${basePath}/api/clubs/${id}`)
-        .then((r) => r.json())
-        .then((d) => d.status === 'success' && setClub(d.data))
-        .finally(() => setLoading(false));
+
+    init();
+
+    return () => {
+      active = false;
+      ac.abort();
+      es?.close();
     };
-    return () => es.close();
   }, [id, basePath]);
 
   const copy = (text: string, key: string) => {
@@ -45,7 +78,11 @@ export default function ClubDashboardPage({ params }: { params: Promise<{ id: st
   const post = async (path: string, body?: unknown) => {
     setBusy(true);
     try {
-      await fetch(`${basePath}/api/clubs/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      const res = await fetch(`${basePath}/api/clubs/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      const json = await res.json().catch(() => null);
+      if (json?.status === 'success' && json.data?.id) {
+        setClub(json.data);
+      }
     } finally {
       setBusy(false);
     }

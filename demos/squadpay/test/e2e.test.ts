@@ -10,6 +10,7 @@ import { POST as simulatePayment } from '../src/app/api/rooms/[id]/simulate-paym
 import { POST as simulateExpiry } from '../src/app/api/rooms/[id]/simulate-expiry/route';
 import { POST as partialWithdraw } from '../src/app/api/rooms/[id]/partial-withdraw/route';
 import { squadPayStore } from '../src/lib/roomStore';
+import { shouldAcceptRoomUpdate } from '../src/lib/roomStatus';
 
 describe('SquadPay Bill Splitting & Settlement E2E Suite', () => {
   it('handles 3 participants paying, live updates over SSE, single idempotent host payout', async () => {
@@ -171,5 +172,36 @@ describe('SquadPay Bill Splitting & Settlement E2E Suite', () => {
     expect(withdrawJson.data.status).toBe('partially_closed');
     expect(withdrawJson.data.participants[1].status).toBe('unsettled');
     expect(withdrawJson.data.payout.amount).toBe('25000.00');
+  });
+
+  it('returns 404 for unknown rooms and never regresses settled rooms via syncRoom', async () => {
+    const missingRes = await getRoom(new NextRequest('http://localhost:3002/api/rooms/sq_does_not_exist_999'), {
+      params: Promise.resolve({ id: 'sq_does_not_exist_999' }),
+    });
+    expect(missingRes.status).toBe(404);
+
+    const room = await squadPayStore.createRoom({
+      title: 'Monotonic Room',
+      totalAmount: '1000.00',
+      splitMode: 'equal',
+      host: {
+        name: 'Tunde Balogun',
+        phone: '08099887766',
+        bankName: 'GTBank',
+        bankCode: '058',
+        accountNumber: '9988776655',
+        accountName: 'TUNDE BALOGUN',
+      },
+      participantInputs: [{ name: 'A' }, { name: 'B' }],
+    });
+    const initialSnapshot = structuredClone(room);
+    await squadPayStore.markParticipantPaid(room.id, 'p_1');
+    const settled = await squadPayStore.markParticipantPaid(room.id, 'p_2');
+    expect(settled.status).toBe('completed');
+
+    const stale = { ...initialSnapshot, updatedAt: new Date(Date.now() + 60_000).toISOString() };
+    expect(shouldAcceptRoomUpdate(settled, stale)).toBe(false);
+    const synced = squadPayStore.syncRoom(stale);
+    expect(synced.status).toBe('completed');
   });
 });

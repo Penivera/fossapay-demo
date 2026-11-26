@@ -24,6 +24,7 @@ interface Quote {
 }
 
 interface OffRampCardProps {
+  disabled?: boolean;
   onInitiate: (details: {
     originAsset: Asset;
     amountIn: string;
@@ -44,7 +45,7 @@ const SANDBOX_BALANCE = 240.5;
 
 const ngn = (v: number | string) => Number(v).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
+export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate, disabled = false }) => {
   const { isConnected } = useNear();
   const { isMock } = useMode();
 
@@ -70,11 +71,13 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
   const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/near-offramp') ? '/near-offramp' : '';
 
   useEffect(() => {
+    if (disabled) return;
     const t = setInterval(() => setCountdown((p) => (p <= 1 ? 30 : p - 1)), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
+    if (disabled) return;
     (async () => {
       try {
         const res = await fetch(`${basePath}/api/banks`);
@@ -84,11 +87,11 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
         console.error('Failed to load banks:', err);
       }
     })();
-  }, [basePath]);
+  }, [basePath, disabled]);
 
   // Resolve the account holder name once 10 digits and a bank are present
   useEffect(() => {
-    if (accountNumber.length !== 10 || !selectedBankCode) {
+    if (disabled || accountNumber.length !== 10 || !selectedBankCode) {
       setResolvedAccountName(null);
       setResolveError(null);
       return;
@@ -124,10 +127,15 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
       live = false;
       clearTimeout(timer);
     };
-  }, [accountNumber, selectedBankCode, basePath]);
+  }, [accountNumber, selectedBankCode, basePath, disabled]);
 
   // Quote
   useEffect(() => {
+    if (disabled) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
     const parsed = parseFloat(amountIn);
     if (isNaN(parsed) || parsed <= 0) {
       setQuote(null);
@@ -162,7 +170,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
       live = false;
       clearTimeout(timer);
     };
-  }, [amountIn, selectedAsset]);
+  }, [amountIn, selectedAsset, basePath, disabled]);
 
   const currentBank = banks.find((b) => b.code === selectedBankCode);
 
@@ -190,7 +198,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
 
   return (
     <>
-      <Card className="space-y-6">
+      <Card className={cn('space-y-6', disabled && 'pointer-events-none select-none opacity-55 grayscale')} aria-disabled={disabled || undefined}>
         {/* You pay */}
         <Field
           label="You pay"
@@ -199,7 +207,7 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
               <span className="flex items-center gap-1.5">
                 <span className="tabular">Balance {SANDBOX_BALANCE.toFixed(2)}</span>
                 {[25, 50, 100].map((p) => (
-                  <button key={p} onClick={() => handleQuickPercent(p)} className="rounded-md bg-subtle px-1.5 py-0.5 text-xs font-medium text-ink-2 transition hover:bg-line">
+                  <button key={p} disabled={disabled} onClick={() => handleQuickPercent(p)} className="rounded-md bg-subtle px-1.5 py-0.5 text-xs font-medium text-ink-2 transition hover:bg-line">
                     {p === 100 ? 'Max' : `${p}%`}
                   </button>
                 ))}
@@ -211,16 +219,18 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
             <div className="flex min-w-0 flex-1 items-center rounded-xl border border-line-strong bg-surface px-4 transition focus-within:border-brand-accent focus-within:ring-4 focus-within:ring-brand-accent/15">
               <input
                 inputMode="decimal"
+                disabled={disabled}
                 value={amountIn}
                 onChange={(e) => setAmountIn(e.target.value.replace(/[^0-9.]/g, ''))}
                 placeholder="0.00"
                 aria-label="Amount to pay"
-                className="tabular h-14 w-full bg-transparent text-2xl font-semibold tracking-tight text-ink outline-none placeholder:text-line-strong"
+                className="tabular h-14 w-full bg-transparent text-2xl font-semibold tracking-tight text-ink outline-none placeholder:text-line-strong disabled:cursor-not-allowed"
               />
             </div>
             <button
+              disabled={disabled}
               onClick={() => setIsTokenModalOpen(true)}
-              className="flex min-w-[9.5rem] items-center justify-between gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-left transition hover:border-muted/60 hover:bg-subtle"
+              className="flex min-w-[9.5rem] items-center justify-between gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-left transition hover:border-muted/60 hover:bg-subtle disabled:cursor-not-allowed"
             >
               <span>
                 <span className="block text-[15px] font-semibold text-ink">{selectedAsset.symbol}</span>
@@ -257,15 +267,17 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
             <input
               inputMode="numeric"
               maxLength={10}
+              disabled={disabled}
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9]/g, ''))}
               placeholder="10-digit account number"
               aria-label="Account number"
-              className="tabular h-12 rounded-xl border border-line-strong bg-surface px-3.5 text-[15px] text-ink outline-none transition placeholder:text-muted/70 hover:border-muted/60 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15"
+              className="tabular h-12 rounded-xl border border-line-strong bg-surface px-3.5 text-[15px] text-ink outline-none transition placeholder:text-muted/70 hover:border-muted/60 focus:border-brand-accent focus:ring-4 focus:ring-brand-accent/15 disabled:cursor-not-allowed"
             />
             <button
+              disabled={disabled}
               onClick={() => setIsBankModalOpen(true)}
-              className="flex h-12 items-center justify-between gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-left transition hover:border-muted/60 hover:bg-subtle"
+              className="flex h-12 items-center justify-between gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-left transition hover:border-muted/60 hover:bg-subtle disabled:cursor-not-allowed"
             >
               <span className={cn('truncate text-[15px]', currentBank ? 'font-medium text-ink' : 'text-muted')}>{currentBank ? currentBank.name : 'Select bank'}</span>
               <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
@@ -301,11 +313,11 @@ export const OffRampCard: React.FC<OffRampCardProps> = ({ onInitiate }) => {
         )}
 
         {!isConnected ? (
-          <Button size="lg" block onClick={openWalletModal}>
-            <Wallet className="h-5 w-5" /> Connect wallet to continue
+          <Button size="lg" block disabled={disabled} onClick={openWalletModal}>
+            <Wallet className="h-5 w-5" /> {disabled ? 'Demo unavailable (insufficient liquidity)' : 'Connect wallet to continue'}
           </Button>
         ) : (
-          <Button size="lg" block disabled={!canSubmit} onClick={() => setIsReviewOpen(true)}>
+          <Button size="lg" block disabled={disabled || !canSubmit} onClick={() => setIsReviewOpen(true)}>
             Review transfer
           </Button>
         )}

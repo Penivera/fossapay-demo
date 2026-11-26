@@ -280,4 +280,50 @@ describe('AjoSphere E2E Lifecycle & Defaulter Mitigation Suite', () => {
       fossaClient.kyc.verifyIdentity = originalVerify;
     }
   });
+
+  it('returns undefined for unknown clubs and deduplicates concurrent confirmKycPayment calls', async () => {
+    expect(store.getClub('ajo_does_not_exist_999')).toBeUndefined();
+
+    const club = store.createClub({
+      name: 'Concurrent KYC Club',
+      contributionAmount: '500.00',
+      totalRounds: 3,
+    });
+
+    const originalVerify = fossaClient.kyc.verifyIdentity;
+    let verifyCalls = 0;
+    const seenKeys = new Set<string>();
+    fossaClient.kyc.verifyIdentity = async (method, idNum, key) => {
+      verifyCalls++;
+      seenKeys.add(key);
+      if (verifyCalls === 1) {
+        throw new Error('Insufficient NGN available balance for KYC verification');
+      }
+      await new Promise((r) => setTimeout(r, 20));
+      return originalVerify.call(fossaClient.kyc, method, idNum, key);
+    };
+
+    try {
+      const joinRes = await store.joinClub({
+        clubId: club.id,
+        kycMethod: 'BVN',
+        identityNumber: '22233344455',
+        bankCode: '058',
+        accountNumber: '9988776655',
+      });
+      if (!('paymentRequired' in joinRes) || !joinRes.paymentRequired) throw new Error('Expected paymentRequired');
+
+      // Fire two concurrent confirms (e.g. polling + manual button)
+      const [r1, r2] = await Promise.all([
+        store.confirmKycPayment(joinRes.pendingId, true),
+        store.confirmKycPayment(joinRes.pendingId, false),
+      ]);
+      expect(r1.member.id).toBe(r2.member.id);
+      expect(club.members).toHaveLength(1);
+      expect(verifyCalls).toBe(2); // 1 initial failed attempt + 1 single confirmed attempt
+      expect(seenKeys.has(`ajo_kyc_${joinRes.pendingId}`)).toBe(true);
+    } finally {
+      fossaClient.kyc.verifyIdentity = originalVerify;
+    }
+  });
 });

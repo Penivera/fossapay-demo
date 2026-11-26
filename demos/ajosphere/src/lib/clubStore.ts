@@ -165,6 +165,7 @@ export class AjoClubStore {
   private accountToClubMap = new Map<string, { clubId: string; memberId: string }>();
   private listeners = new Map<string, Set<(club: AjoClub) => void>>();
   private pendingKycVerifications = new Map<string, PendingKycVerification>();
+  private confirmInFlight = new Map<string, Promise<{ member: AjoMember; club: AjoClub }>>();
 
   constructor() {
     this.loadFromDisk();
@@ -354,16 +355,6 @@ export class AjoClubStore {
       this.loadFromDisk();
       club = this.clubs.get(id);
     }
-    if (!club && id) {
-      club = this.createClub({
-        name: id.replace(/^(ajo_|club_)/, '').replace(/_/g, ' ') || 'Ajo Club',
-        contributionAmount: '5000.00',
-        totalRounds: 5,
-      });
-      club.id = id;
-      this.clubs.set(id, club);
-      this.saveToDisk();
-    }
     return club;
   }
 
@@ -429,25 +420,11 @@ export class AjoClubStore {
     bankName?: string;
     email?: string;
     phone?: string;
+    kycIdempotencyKey?: string;
   }): Promise<JoinClubResult> {
-    let club = this.clubs.get(params.clubId);
+    const club = this.getClub(params.clubId);
     if (!club) {
-      this.loadFromDisk();
-      club = this.clubs.get(params.clubId);
-    }
-    if (!club) {
-      club = this.createClub({
-        name: params.clubId.replace(/^(ajo_|club_)/, '').replace(/_/g, ' ') || 'Ajo Club',
-        contributionAmount: '5000.00',
-        totalRounds: 5,
-      });
-      club.id = params.clubId;
-      this.clubs.set(params.clubId, club);
-      this.saveToDisk();
-    }
-
-    if (club.members.length >= club.totalRounds) {
-      throw new Error(`Club is full (${club.members.length}/${club.totalRounds} members joined)`);
+      throw new Error(`Club ${params.clubId} not found`);
     }
 
     const cleanNum = params.identityNumber.replace(/\D/g, '');
@@ -459,10 +436,19 @@ export class AjoClubStore {
     const bvnOrNinHash = crypto.createHash('sha256').update(cleanNum).digest('hex');
     const bvnOrNinLast4 = cleanNum.slice(-4);
 
+    const existingMember = club.members.find((m) => m.bvnOrNinHash === bvnOrNinHash);
+    if (existingMember) {
+      return { member: existingMember, club };
+    }
+
+    if (club.members.length >= club.totalRounds) {
+      throw new Error(`Club is full (${club.members.length}/${club.totalRounds} members joined)`);
+    }
+
     // 1. Verify KYC identity via FossaPay KYC endpoint
     let kycResult;
     try {
-      const kycIdempotencyKey = `ajo_kyc_${club.id}_${bvnOrNinLast4}_${Date.now()}`;
+      const kycIdempotencyKey = params.kycIdempotencyKey || `ajo_kyc_${club.id}_${bvnOrNinLast4}_${Date.now()}`;
       kycResult = await fossaClient.kyc.verifyIdentity(
         params.kycMethod,
         cleanNum,
@@ -651,44 +637,57 @@ export class AjoClubStore {
   }
 
   async confirmKycPayment(pendingId: string, simulate = false): Promise<{ member: AjoMember; club: AjoClub }> {
-    let pending = this.pendingKycVerifications.get(pendingId);
-    if (!pending) {
-      this.loadFromDisk();
-      pending = this.pendingKycVerifications.get(pendingId);
-    }
-    if (!pending) {
-      throw new Error('Verification request not found or has expired. Please try joining again.');
-    }
+    const existingInFlight = this.confirmInFlight.get(pendingId);
+    if (existingInFlight) return existingInFlight;
 
-    if (simulate && process.env.FOSSAPAY_MODE !== 'live') {
-      await defaultMockLedger.simulateCheckoutPayment(pending.checkoutId);
+    const run = (async () => {
+      let pending = this.pendingKycVerifications.get(pendingId);
+      if (!pending) {
+        this.loadFromDisk();
+        pending = this.pendingKycVerifications.get(pendingId);
+      }
+      if (!pending) {
+        throw new Error('Verification request not found or has expired. Please try joining again.');
+      }
+
+      if (simulate && process.env.FOSSAPAY_MODE !== 'live') {
+        await defaultMockLedger.simulateCheckoutPayment(pending.checkoutId);
+      }
+
+      const chk = await fossaClient.checkouts.getCheckout(pending.checkoutId);
+      if (chk.status !== 'completed') {
+        throw new Error(
+          `Payment of ₦${pending.checkout.amountPayable || pending.fee} to ${pending.checkout.bankName} (${pending.checkout.accountNumber}) has not been confirmed yet. Please complete the transfer and try again.`
+        );
+      }
+
+      // Now that checkout was paid, master wallet has the funds. Use deterministic idempotency key per pendingId.
+      const res = await this.joinClub({
+        clubId: pending.clubId,
+        kycMethod: pending.kycMethod,
+        identityNumber: pending.identityNumber,
+        accountNumber: pending.accountNumber,
+        bankCode: pending.bankCode,
+        email: pending.email,
+        phone: pending.phone,
+        kycIdempotencyKey: `ajo_kyc_${pendingId}`,
+      });
+
+      if ('paymentRequired' in res && res.paymentRequired) {
+        throw new Error('Payment received, but wallet balance is still synchronizing. Please try again in a few seconds.');
+      }
+
+      this.pendingKycVerifications.delete(pendingId);
+      this.saveToDisk();
+      return res as { member: AjoMember; club: AjoClub };
+    })();
+
+    this.confirmInFlight.set(pendingId, run);
+    try {
+      return await run;
+    } finally {
+      this.confirmInFlight.delete(pendingId);
     }
-
-    const chk = await fossaClient.checkouts.getCheckout(pending.checkoutId);
-    if (chk.status !== 'completed') {
-      throw new Error(
-        `Payment of ₦${pending.checkout.amountPayable || pending.fee} to ${pending.checkout.bankName} (${pending.checkout.accountNumber}) has not been confirmed yet. Please complete the transfer and try again.`
-      );
-    }
-
-    // Now that checkout was paid, master wallet has the funds. Run joinClub again:
-    const res = await this.joinClub({
-      clubId: pending.clubId,
-      kycMethod: pending.kycMethod,
-      identityNumber: pending.identityNumber,
-      accountNumber: pending.accountNumber,
-      bankCode: pending.bankCode,
-      email: pending.email,
-      phone: pending.phone,
-    });
-
-    if ('paymentRequired' in res && res.paymentRequired) {
-      throw new Error('Payment received, but wallet balance is still synchronizing. Please try again in a few seconds.');
-    }
-
-    this.pendingKycVerifications.delete(pendingId);
-    this.saveToDisk();
-    return res as { member: AjoMember; club: AjoClub };
   }
 
   getPendingKycVerification(id: string): PendingKycVerification | undefined {
@@ -1008,6 +1007,7 @@ export class AjoClubStore {
   private broadcast(clubId: string): void {
     const club = this.clubs.get(clubId);
     if (!club) return;
+    this.saveToDisk();
     const set = this.listeners.get(clubId);
     if (!set) return;
 

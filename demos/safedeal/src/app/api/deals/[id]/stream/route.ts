@@ -20,33 +20,44 @@ export async function GET(
   }
 
   const encoder = new TextEncoder();
+  let cleanup = () => {};
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+
       // Immediate state push
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(deal)}\n\n`));
 
       const unsubscribe = safeDealStore.subscribe(dealId, (updated) => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(updated)}\n\n`));
         } catch {
-          // Client closed
+          cleanup();
         }
       });
 
       const heartbeat = setInterval(() => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(': heartbeat\n\n'));
         } catch {
-          clearInterval(heartbeat);
-          unsubscribe();
+          cleanup();
         }
       }, 15000);
 
-      return () => {
+      cleanup = () => {
+        if (closed) return;
+        closed = true;
         clearInterval(heartbeat);
         unsubscribe();
       };
+
+      _req.signal.addEventListener('abort', cleanup);
+    },
+    cancel() {
+      cleanup();
     },
   });
 

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { use, useEffect, useState } from 'react';
+import React, { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
 import { Badge, Button, ButtonLink, Card, Dialog, EmptyState, Field, Input, Notice, Page, Spinner, Steps, Textarea, useMode, type StepItem } from '@fossapay/ui';
-import { saveCachedDeal, getCachedDeal } from '../../../lib/clientStorage';
+import { saveCachedDeal, getCachedDealSnapshot } from '../../../lib/clientStorage';
+import { isTerminalDealStatus, shouldAcceptDealUpdate } from '../../../lib/dealStatus';
 
 const FLOW = ['WAITING_PAYMENT', 'ESCROW_LOCKED', 'DISPATCHED', 'INSPECTION_PERIOD', 'RELEASED'] as const;
 const FLOW_LABELS: Array<{ title: string; detail: string }> = [
@@ -38,108 +39,200 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   const [remaining, setRemaining] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sseFailed, setSseFailed] = useState(false);
+  const dealRef = useRef<any>(null);
+  const autoReleaseCheckedRef = useRef(false);
 
   const isSeller = Boolean(sellerToken && deal?.seller?.sellerToken === sellerToken);
 
-  useEffect(() => {
-    let active = true;
-
-    const loadDeal = async () => {
-      try {
-        const res = await fetch(`${basePath}/api/deals/${dealId}`);
-        const data = await res.json().catch(() => null);
-        if (data?.status === 'success' && data.data && active) {
-          setDeal(data.data);
-          saveCachedDeal(data.data, isSeller ? 'seller' : 'buyer');
-          setLoading(false);
-          return;
+  const applyDeal = useCallback(
+    (incoming: any) => {
+      if (!incoming?.id) return null;
+      let accepted: any = dealRef.current;
+      setDeal((prev: any) => {
+        if (!shouldAcceptDealUpdate(prev, incoming)) {
+          accepted = prev;
+          return prev;
         }
-      } catch {}
+        accepted = incoming;
+        dealRef.current = incoming;
+        const role = sellerToken && incoming?.seller?.sellerToken === sellerToken ? 'seller' : 'buyer';
+        saveCachedDeal(incoming, role);
+        return incoming;
+      });
+      return accepted;
+    },
+    [sellerToken]
+  );
 
-      // If server doesn't have the deal (e.g. serverless instance recycling), check client cache
-      const cached = getCachedDeal(dealId);
-      if (cached && active) {
-        setDeal(cached);
-        setLoading(false);
-        // Attempt to sync cached deal back to server
-        fetch(`${basePath}/api/deals/sync`, {
+  const syncDealToServer = useCallback(
+    async (snapshot: any, signal?: AbortSignal) => {
+      if (!snapshot?.id || !snapshot?.seller) return null;
+      try {
+        const r = await fetch(`${basePath}/api/deals/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deal: cached }),
-        })
-          .then((r) => r.json())
-          .then((res) => {
-            if (res?.status === 'success' && res.data && active) {
-              setDeal(res.data);
-              saveCachedDeal(res.data, isSeller ? 'seller' : 'buyer');
-            }
-          })
-          .catch(() => {});
-      } else if (active) {
-        setLoading(false);
-      }
-    };
-
-    loadDeal();
-
-    const es = new EventSource(`${basePath}/api/deals/${dealId}/stream`);
-    es.onmessage = (ev) => {
-      try {
-        const d = JSON.parse(ev.data);
-        if (active && d?.id) {
-          setDeal(d);
-          saveCachedDeal(d, isSeller ? 'seller' : 'buyer');
+          body: JSON.stringify({ deal: snapshot }),
+          signal,
+        });
+        const res = await r.json().catch(() => null);
+        if (res?.status === 'success' && res.data?.id) {
+          applyDeal(res.data);
+          return res.data;
         }
       } catch {}
-      if (active) setLoading(false);
+      return null;
+    },
+    [basePath, applyDeal]
+  );
+
+  useEffect(() => {
+    let active = true;
+    const ac = new AbortController();
+    let es: EventSource | null = null;
+    setSseFailed(false);
+
+    const init = async () => {
+      let resolved: any = null;
+
+      try {
+        const res = await fetch(`${basePath}/api/deals/${dealId}`, { signal: ac.signal });
+        const data = await res.json().catch(() => null);
+        if (data?.status === 'success' && data.data && active) {
+          const cached = getCachedDealSnapshot(dealId);
+          if (cached && shouldAcceptDealUpdate(data.data, cached)) {
+            resolved = (await syncDealToServer(cached, ac.signal)) || cached;
+          } else {
+            resolved = data.data;
+            applyDeal(data.data);
+          }
+        }
+      } catch {
+        if (!active) return;
+      }
+
+      if (!resolved && active) {
+        const cached = getCachedDealSnapshot(dealId);
+        if (cached) {
+          applyDeal(cached);
+          resolved = cached;
+          await syncDealToServer(cached, ac.signal);
+        }
+      }
+
+      if (!active) return;
+      setLoading(false);
+
+      const latest = dealRef.current || resolved;
+      if (!latest || isTerminalDealStatus(latest.status)) {
+        return;
+      }
+
+      es = new EventSource(`${basePath}/api/deals/${dealId}/stream`);
+      es.onopen = () => {
+        if (active) setSseFailed(false);
+      };
+      es.onmessage = (ev) => {
+        try {
+          const d = JSON.parse(ev.data);
+          if (active && d?.id) {
+            applyDeal(d);
+            if (isTerminalDealStatus(d.status)) {
+              es?.close();
+            }
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        // Close immediately instead of letting EventSource spin on 404/recycled lambdas; polling takes over if non-terminal.
+        es?.close();
+        if (active) setSseFailed(true);
+      };
     };
-    es.onerror = () => {
-      loadDeal();
-    };
+
+    init();
 
     return () => {
       active = false;
-      es.close();
+      ac.abort();
+      es?.close();
     };
-  }, [dealId, basePath, isSeller]);
+  }, [dealId, basePath, applyDeal, syncDealToServer]);
 
-  // Active polling while WAITING_PAYMENT to auto-reconcile with FossaPay
+  // Active polling while WAITING_PAYMENT (auto-reconciliation) or when SSE fallback is active on non-terminal states
+  const currentStatus = deal?.status as string | undefined;
   useEffect(() => {
-    if (deal?.status !== 'WAITING_PAYMENT') return;
+    if (!currentStatus || isTerminalDealStatus(currentStatus)) return;
+    if (currentStatus !== 'WAITING_PAYMENT' && !sseFailed) return;
 
-    const interval = setInterval(async () => {
+    let active = true;
+    let inFlight = false;
+    const ac = new AbortController();
+
+    const poll = async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
       try {
-        const res = await fetch(`${basePath}/api/deals/${dealId}`);
+        const res = await fetch(`${basePath}/api/deals/${dealId}`, { signal: ac.signal });
         const data = await res.json().catch(() => null);
-        if (data?.status === 'success' && data.data?.status && data.data.status !== deal.status) {
-          setDeal(data.data);
-          saveCachedDeal(data.data, isSeller ? 'seller' : 'buyer');
+        if (!active) return;
+        if (data?.status === 'success' && data.data?.id) {
+          applyDeal(data.data);
+        } else if (res.status === 404) {
+          const snapshot = dealRef.current?.seller ? dealRef.current : getCachedDealSnapshot(dealId);
+          if (snapshot) await syncDealToServer(snapshot, ac.signal);
         }
-      } catch {}
-    }, 3000);
+      } catch {} finally {
+        inFlight = false;
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [deal?.status, dealId, basePath, isSeller]);
+    const interval = setInterval(poll, currentStatus === 'WAITING_PAYMENT' ? 3500 : 4500);
+    return () => {
+      active = false;
+      ac.abort();
+      clearInterval(interval);
+    };
+  }, [currentStatus, dealId, basePath, sseFailed, applyDeal, syncDealToServer]);
 
   useEffect(() => {
     if (deal?.status !== 'INSPECTION_PERIOD' || !deal.inspectionExpiresAt) {
       setRemaining(null);
+      autoReleaseCheckedRef.current = false;
       return;
     }
-    const tick = () => setRemaining(Math.max(0, Math.floor((new Date(deal.inspectionExpiresAt).getTime() - Date.now()) / 1000)));
+    const tick = () => {
+      const secs = Math.max(0, Math.floor((new Date(deal.inspectionExpiresAt).getTime() - Date.now()) / 1000));
+      setRemaining(secs);
+      if (secs === 0 && !autoReleaseCheckedRef.current) {
+        autoReleaseCheckedRef.current = true;
+        setTimeout(() => {
+          fetch(`${basePath}/api/deals/${dealId}`)
+            .then((r) => r.json())
+            .then((res) => res?.status === 'success' && res.data && applyDeal(res.data))
+            .catch(() => null);
+        }, 500);
+      }
+    };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [deal?.status, deal?.inspectionExpiresAt]);
+  }, [deal?.status, deal?.inspectionExpiresAt, basePath, dealId, applyDeal]);
 
   const act = async (key: string, path: string, init?: RequestInit) => {
     setBusy(key);
     try {
-      const res = await fetch(`${basePath}/api/deals/${dealId}/${path}`, { method: 'POST', ...init });
-      const json = await res.json().catch(() => null);
+      let res = await fetch(`${basePath}/api/deals/${dealId}/${path}`, { method: 'POST', ...init });
+      let json = await res.json().catch(() => null);
+      if ((!res.ok || json?.status !== 'success') && /not found/i.test(json?.message || '')) {
+        const snapshot = dealRef.current?.seller ? dealRef.current : getCachedDealSnapshot(dealId);
+        if (snapshot && (await syncDealToServer(snapshot))) {
+          res = await fetch(`${basePath}/api/deals/${dealId}/${path}`, { method: 'POST', ...init });
+          json = await res.json().catch(() => null);
+        }
+      }
       if (json?.status === 'success' && json.data?.id) {
-        setDeal(json.data);
-        saveCachedDeal(json.data, isSeller ? 'seller' : 'buyer');
+        applyDeal(json.data);
       }
     } finally {
       setBusy(null);
@@ -165,7 +258,15 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         const up = await (await fetch(`${basePath}/api/deals/${dealId}/upload`, { method: 'POST', body: fd })).json();
         if (up.status === 'success') evidencePhotoUrl = up.data.url;
       }
-      await fetch(`${basePath}/api/deals/${dealId}/dispute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: disputeReason, evidencePhotoUrl }) });
+      const res = await fetch(`${basePath}/api/deals/${dealId}/dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: disputeReason, evidencePhotoUrl }),
+      });
+      const json = await res.json().catch(() => null);
+      if (json?.status === 'success' && json.data?.id) {
+        applyDeal(json.data);
+      }
       setDisputeOpen(false);
     } finally {
       setBusy(null);
@@ -273,8 +374,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                       .then((r) => r.json())
                       .then((res) => {
                         if (res.status === 'success' && res.data) {
-                          setDeal(res.data);
-                          saveCachedDeal(res.data, isSeller ? 'seller' : 'buyer');
+                          applyDeal(res.data);
                         }
                       })
                       .finally(() => setBusy(null));
