@@ -204,4 +204,56 @@ describe('SquadPay Bill Splitting & Settlement E2E Suite', () => {
     const synced = squadPayStore.syncRoom(stale);
     expect(synced.status).toBe('completed');
   });
+
+  it('skips reconciliation on plain GET and scopes ?reconcile=1 to participantId when provided', async () => {
+    const room = await squadPayStore.createRoom({
+      title: 'Explicit Reconcile Split',
+      totalAmount: '2000.00',
+      splitMode: 'equal',
+      host: {
+        name: 'Tunde Balogun',
+        phone: '08099887766',
+        bankName: 'GTBank',
+        bankCode: '058',
+        accountNumber: '9988776655',
+        accountName: 'TUNDE BALOGUN',
+      },
+      participantInputs: [{ name: 'Alice' }, { name: 'Bob' }],
+    });
+
+    await squadPayStore.generateParticipantCheckout(room.id, 'p_1');
+    const generated = await squadPayStore.generateParticipantCheckout(room.id, 'p_2');
+    const p1CheckoutId = generated.participants[0].checkout!.id;
+    const p2CheckoutId = generated.participants[1].checkout!.id;
+
+    await defaultMockLedger.simulateCheckoutPayment(p1CheckoutId);
+    await defaultMockLedger.simulateCheckoutPayment(p2CheckoutId);
+
+    // Plain GET must not reconcile upstream checkouts
+    const plainRes = await getRoom(new NextRequest(`http://localhost:3002/api/rooms/${room.id}`), {
+      params: Promise.resolve({ id: room.id }),
+    });
+    const plainJson = await plainRes.json();
+    expect(plainJson.status).toBe('success');
+    expect(plainJson.data.participants[0].status).toBe('checkout_generated');
+    expect(plainJson.data.participants[1].status).toBe('checkout_generated');
+
+    // ?reconcile=1&participantId=p_1 reconciles only p_1
+    const scopedRes = await getRoom(
+      new NextRequest(`http://localhost:3002/api/rooms/${room.id}?reconcile=1&participantId=p_1`),
+      { params: Promise.resolve({ id: room.id }) }
+    );
+    const scopedJson = await scopedRes.json();
+    expect(scopedJson.data.participants[0].status).toBe('paid');
+    expect(scopedJson.data.participants[1].status).toBe('checkout_generated');
+
+    // ?reconcile=1 without participantId reconciles remaining open checkouts
+    const fullRes = await getRoom(
+      new NextRequest(`http://localhost:3002/api/rooms/${room.id}?reconcile=1`),
+      { params: Promise.resolve({ id: room.id }) }
+    );
+    const fullJson = await fullRes.json();
+    expect(fullJson.data.participants[1].status).toBe('paid');
+    expect(fullJson.data.status).toBe('completed');
+  });
 });

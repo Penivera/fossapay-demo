@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { squadPayStore } from '../../../../lib/roomStore';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  await squadPayStore.reconcileRoomCheckouts(id).catch(() => null);
+  const shouldReconcile = req.nextUrl.searchParams.get('reconcile') === '1';
+  if (shouldReconcile) {
+    const participantId = req.nextUrl.searchParams.get('participantId') || undefined;
+    await squadPayStore.reconcileRoomCheckouts(id, participantId).catch(() => null);
+  }
   const room = squadPayStore.getRoom(id);
 
   if (!room) {

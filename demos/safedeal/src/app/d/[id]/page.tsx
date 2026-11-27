@@ -39,7 +39,6 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   const [remaining, setRemaining] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const [sseFailed, setSseFailed] = useState(false);
   const dealRef = useRef<any>(null);
   const autoReleaseCheckedRef = useRef(false);
 
@@ -90,13 +89,12 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     let active = true;
     const ac = new AbortController();
     let es: EventSource | null = null;
-    setSseFailed(false);
 
     const init = async () => {
       let resolved: any = null;
 
       try {
-        const res = await fetch(`${basePath}/api/deals/${dealId}`, { signal: ac.signal });
+        const res = await fetch(`${basePath}/api/deals/${dealId}?reconcile=1`, { signal: ac.signal });
         const data = await res.json().catch(() => null);
         if (data?.status === 'success' && data.data && active) {
           const cached = getCachedDealSnapshot(dealId);
@@ -129,12 +127,8 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       }
 
       es = new EventSource(`${basePath}/api/deals/${dealId}/stream`);
-      es.onopen = () => {
-        if (active) setSseFailed(false);
-      };
       es.addEventListener('unavailable', () => {
         es?.close();
-        if (active) setSseFailed(true);
       });
       es.onmessage = (ev) => {
         try {
@@ -148,9 +142,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         } catch {}
       };
       es.onerror = () => {
-        // Close immediately instead of letting EventSource spin on 404/recycled lambdas; polling takes over if non-terminal.
         es?.close();
-        if (active) setSseFailed(true);
       };
     };
 
@@ -162,42 +154,6 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       es?.close();
     };
   }, [dealId, basePath, applyDeal, syncDealToServer]);
-
-  // Active polling while WAITING_PAYMENT (auto-reconciliation) or when SSE fallback is active on non-terminal states
-  const currentStatus = deal?.status as string | undefined;
-  useEffect(() => {
-    if (!currentStatus || isTerminalDealStatus(currentStatus)) return;
-    if (currentStatus !== 'WAITING_PAYMENT' && !sseFailed) return;
-
-    let active = true;
-    let inFlight = false;
-    const ac = new AbortController();
-
-    const poll = async () => {
-      if (!active || inFlight) return;
-      inFlight = true;
-      try {
-        const res = await fetch(`${basePath}/api/deals/${dealId}`, { signal: ac.signal });
-        const data = await res.json().catch(() => null);
-        if (!active) return;
-        if (data?.status === 'success' && data.data?.id) {
-          applyDeal(data.data);
-        } else if (res.status === 404) {
-          const snapshot = dealRef.current?.seller ? dealRef.current : getCachedDealSnapshot(dealId);
-          if (snapshot) await syncDealToServer(snapshot, ac.signal);
-        }
-      } catch {} finally {
-        inFlight = false;
-      }
-    };
-
-    const interval = setInterval(poll, currentStatus === 'WAITING_PAYMENT' ? 3500 : 4500);
-    return () => {
-      active = false;
-      ac.abort();
-      clearInterval(interval);
-    };
-  }, [currentStatus, dealId, basePath, sseFailed, applyDeal, syncDealToServer]);
 
   useEffect(() => {
     if (deal?.status !== 'INSPECTION_PERIOD' || !deal.inspectionExpiresAt) {
@@ -372,16 +328,24 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                   size="lg"
                   block
                   loading={busy === 'reconcile'}
-                  onClick={() => {
+                  onClick={async () => {
                     setBusy('reconcile');
-                    fetch(`${basePath}/api/deals/${dealId}`)
-                      .then((r) => r.json())
-                      .then((res) => {
-                        if (res.status === 'success' && res.data) {
-                          applyDeal(res.data);
+                    try {
+                      const url = `${basePath}/api/deals/${dealId}?reconcile=1`;
+                      let r = await fetch(url);
+                      if (r.status === 404) {
+                        const snapshot = dealRef.current?.seller ? dealRef.current : getCachedDealSnapshot(dealId);
+                        if (snapshot && (await syncDealToServer(snapshot))) {
+                          r = await fetch(url);
                         }
-                      })
-                      .finally(() => setBusy(null));
+                      }
+                      const res = await r.json().catch(() => null);
+                      if (res?.status === 'success' && res.data) {
+                        applyDeal(res.data);
+                      }
+                    } finally {
+                      setBusy(null);
+                    }
                   }}
                 >
                   I have paid (Verify transfer)

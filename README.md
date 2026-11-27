@@ -37,12 +37,17 @@ Requires Node.js 20+.
 git clone https://github.com/Penivera/fossapay-demo.git
 cd fossapay-demo
 npm install
-npm run build --workspace=packages/fossapay-client   # demos import the built client
 
-npm run dev:safedeal      # http://localhost:3001
-npm run dev:squadpay      # http://localhost:3002
-npm run dev:ajosphere     # http://localhost:3003
-npm run dev:offramp       # http://localhost:3000
+# One-shot start: builds client, starts landing page (:8080), all 4 demos, and webhook gateway (:8001)
+npm run dev               # http://localhost:8080 (sandbox mode)
+npm run dev:live          # http://localhost:8080 (live mode + local webhook forwarding)
+
+# Or start individual workspaces directly
+npm run build --workspace=packages/fossapay-client   # demos import the built client
+npm run dev:safedeal      # http://localhost:3001/safedeal
+npm run dev:squadpay      # http://localhost:3002/squadpay
+npm run dev:ajosphere     # http://localhost:3003/ajosphere
+npm run dev:offramp       # http://localhost:3000/near-offramp
 npm run gateway           # http://localhost:8001 (webhook inspector)
 ```
 
@@ -106,6 +111,11 @@ packages/
 docs/integration/    the integration guide
 site/                the landing page (GitHub Pages)
 ```
+
+### Why separate packages and apps?
+
+- **Shared `packages/`:** `fossapay-client` and `ui` keep the FossaPay API wrapper, mock ledger, kobo maths, webhook signature verification, and UI components in one place instead of duplicating them across apps. `webhook-gateway` runs as its own standalone HTTP server (`:8001`) so a single registered FossaPay webhook URL can verify deliveries once and fan events out to all four demos.
+- **Standalone `demos/`:** Each demo is an independent Next.js app with its own dependencies (for example, only `near-offramp` depends on `@hot-labs/near-connect`), API routes, and store so you can read, run, or deploy one integration pattern in isolation—while [site/vercel.json](site/vercel.json) proxies all four under one domain using each app's `basePath`.
 
 ## Scripts
 

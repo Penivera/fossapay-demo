@@ -17,7 +17,6 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   const [openId, setOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [sseFailed, setSseFailed] = useState(false);
   const roomRef = useRef<any>(null);
   const basePath = typeof window !== 'undefined' && window.location.pathname.startsWith('/squadpay') ? '/squadpay' : '';
 
@@ -62,12 +61,11 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     let active = true;
     const ac = new AbortController();
     let es: EventSource | null = null;
-    setSseFailed(false);
 
     const init = async () => {
       let resolved: any = null;
       try {
-        const res = await fetch(`${basePath}/api/rooms/${roomId}`, { signal: ac.signal });
+        const res = await fetch(`${basePath}/api/rooms/${roomId}?reconcile=1`, { signal: ac.signal });
         const json = await res.json().catch(() => null);
         if (json?.status === 'success' && json.data && active) {
           const cached = getCachedRoomSnapshot(roomId);
@@ -100,12 +98,8 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
       }
 
       es = new EventSource(`${basePath}/api/rooms/${roomId}/stream`);
-      es.onopen = () => {
-        if (active) setSseFailed(false);
-      };
       es.addEventListener('unavailable', () => {
         es?.close();
-        if (active) setSseFailed(true);
       });
       es.onmessage = (ev) => {
         try {
@@ -120,7 +114,6 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
       };
       es.onerror = () => {
         es?.close();
-        if (active) setSseFailed(true);
       };
     };
 
@@ -132,41 +125,6 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
       es?.close();
     };
   }, [roomId, basePath, applyRoom, syncRoomToServer]);
-
-  // Active polling while room is active to auto-reconcile with FossaPay
-  const currentRoomStatus = room?.status as string | undefined;
-  useEffect(() => {
-    if (!currentRoomStatus || isSettledRoomStatus(currentRoomStatus)) return;
-
-    let active = true;
-    let inFlight = false;
-    const ac = new AbortController();
-
-    const poll = async () => {
-      if (!active || inFlight) return;
-      inFlight = true;
-      try {
-        const res = await fetch(`${basePath}/api/rooms/${roomId}`, { signal: ac.signal });
-        const json = await res.json().catch(() => null);
-        if (!active) return;
-        if (json?.status === 'success' && json.data?.id) {
-          applyRoom(json.data);
-        } else if (res.status === 404) {
-          const snapshot = Array.isArray(roomRef.current?.participants) ? roomRef.current : getCachedRoomSnapshot(roomId);
-          if (snapshot) await syncRoomToServer(snapshot, ac.signal);
-        }
-      } catch {} finally {
-        inFlight = false;
-      }
-    };
-
-    const interval = setInterval(poll, sseFailed ? 3000 : 3500);
-    return () => {
-      active = false;
-      ac.abort();
-      clearInterval(interval);
-    };
-  }, [roomId, basePath, currentRoomStatus, sseFailed, applyRoom, syncRoomToServer]);
 
   const post = async (key: string, path: string, participantId?: string) => {
     setBusy(key);
@@ -292,16 +250,24 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
                         size="sm"
                         variant="primary"
                         loading={busy === `reconcile-${p.id}`}
-                        onClick={() => {
+                        onClick={async () => {
                           setBusy(`reconcile-${p.id}`);
-                          fetch(`${basePath}/api/rooms/${roomId}`)
-                            .then((r) => r.json())
-                            .then((res) => {
-                              if (res.status === 'success' && res.data) {
-                                applyRoom(res.data);
+                          try {
+                            const url = `${basePath}/api/rooms/${roomId}?reconcile=1&participantId=${encodeURIComponent(p.id)}`;
+                            let r = await fetch(url);
+                            if (r.status === 404) {
+                              const snapshot = Array.isArray(roomRef.current?.participants) ? roomRef.current : getCachedRoomSnapshot(roomId);
+                              if (snapshot && (await syncRoomToServer(snapshot))) {
+                                r = await fetch(url);
                               }
-                            })
-                            .finally(() => setBusy(null));
+                            }
+                            const res = await r.json().catch(() => null);
+                            if (res?.status === 'success' && res.data) {
+                              applyRoom(res.data);
+                            }
+                          } finally {
+                            setBusy(null);
+                          }
                         }}
                       >
                         I have paid (Verify transfer)

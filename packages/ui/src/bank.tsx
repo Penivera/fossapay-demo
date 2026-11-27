@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Field, Input, Select } from './primitives';
 import { Spinner } from './primitives';
 
@@ -26,7 +26,6 @@ interface Bank {
  */
 export function BankAccountPicker({ value, onChange, label = 'Bank account', disabled }: { value: BankAccountValue; onChange: (v: BankAccountValue) => void; label?: string; disabled?: boolean }) {
   const [banks, setBanks] = useState<Bank[]>([]);
-  const [filter, setFilter] = useState('');
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,14 +40,6 @@ export function BankAccountPicker({ value, onChange, label = 'Bank account', dis
       .then((res) => res.status === 'success' && Array.isArray(res.data) && setBanks(res.data))
       .catch(() => setError('Could not load the bank list'));
   }, [basePath]);
-
-  const options = useMemo(() => {
-    const q = filter.toLowerCase().trim();
-    const list = q ? banks.filter((b) => b.name.toLowerCase().includes(q) || b.code.includes(q)) : banks;
-    // Always keep the selected bank present so the control never shows a blank value
-    const selected = banks.find((b) => b.code === value.bankCode);
-    return selected && !list.includes(selected) ? [selected, ...list] : list;
-  }, [banks, filter, value.bankCode]);
 
   useEffect(() => {
     if (value.accountNumber.length !== 10 || !value.bankCode) {
@@ -92,7 +83,6 @@ export function BankAccountPicker({ value, onChange, label = 'Bank account', dis
   return (
     <div className="space-y-3">
       <p className="text-sm font-medium text-ink-2">{label}</p>
-      {banks.length > 40 && <Input aria-label="Filter banks" placeholder="Search banks by name or code…" value={filter} onChange={(e) => setFilter(e.target.value)} disabled={disabled} />}
       <div className="grid gap-3 sm:grid-cols-[3fr_2fr]">
         <Field className="space-y-1.5">
           <Select
@@ -107,7 +97,7 @@ export function BankAccountPicker({ value, onChange, label = 'Bank account', dis
             <option value="" disabled>
               {banks.length ? 'Select a bank' : 'Loading banks…'}
             </option>
-            {options.map((b) => (
+            {banks.map((b) => (
               <option key={b.code} value={b.code}>
                 {b.name}
               </option>

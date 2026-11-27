@@ -321,4 +321,37 @@ describe('SafeDeal Escrow Lifecycle E2E Suite', () => {
     const synced = safeDealStore.syncDeal(staleSnapshot);
     expect(synced.status).toBe('RELEASED');
   });
+
+  it('skips checkout reconciliation on plain GET and reconciles only when ?reconcile=1', async () => {
+    const deal = await safeDealStore.createDeal({
+      title: 'Reconcile Flag Item',
+      description: 'Checks explicit reconcile flag',
+      price: '1000',
+      seller: {
+        name: 'Seller Rec',
+        phone: '08011112222',
+        bankName: 'GTBank',
+        bankCode: '058',
+        accountNumber: '9988776655',
+        accountName: 'TUNDE BALOGUN',
+      },
+    });
+
+    const waiting = await safeDealStore.initiateCheckout(deal.id, { name: 'Buyer Rec', phone: '08033334444' });
+    await defaultMockLedger.simulateCheckoutPayment(waiting.checkout!.id);
+
+    const plainRes = await getDeal(new NextRequest(`http://localhost:3001/api/deals/${deal.id}`), {
+      params: Promise.resolve({ id: deal.id }),
+    });
+    const plainJson = await plainRes.json();
+    expect(plainJson.status).toBe('success');
+    expect(plainJson.data.status).toBe('WAITING_PAYMENT');
+
+    const recRes = await getDeal(new NextRequest(`http://localhost:3001/api/deals/${deal.id}?reconcile=1`), {
+      params: Promise.resolve({ id: deal.id }),
+    });
+    const recJson = await recRes.json();
+    expect(recJson.status).toBe('success');
+    expect(recJson.data.status).toBe('ESCROW_LOCKED');
+  });
 });

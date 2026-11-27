@@ -1,6 +1,6 @@
 'use client';
 
-import React, { use, useEffect, useRef, useState } from 'react';
+import React, { use, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Copy, FlaskConical } from 'lucide-react';
@@ -83,39 +83,6 @@ export default function JoinClubPage({ params }: { params: Promise<{ id: string 
       setVerifyingPayment(false);
     }
   };
-
-  useEffect(() => {
-    if (!pendingPayment?.pendingId || joined) return;
-    let active = true;
-    let inFlight = false;
-    const ac = new AbortController();
-
-    const interval = setInterval(async () => {
-      if (!active || inFlight || verifyingRef.current) return;
-      inFlight = true;
-      try {
-        const res = await fetch(`${basePath}/api/clubs/${id}/join/confirm`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pendingId: pendingPayment.pendingId }),
-          signal: ac.signal,
-        });
-        const data = await res.json();
-        if (active && data.status === 'success') {
-          setJoined(data.data);
-          setPendingPayment(null);
-        }
-      } catch {} finally {
-        inFlight = false;
-      }
-    }, 4000);
-
-    return () => {
-      active = false;
-      ac.abort();
-      clearInterval(interval);
-    };
-  }, [id, basePath, pendingPayment?.pendingId, joined]);
 
   return (
     <Page narrow className="max-w-xl">

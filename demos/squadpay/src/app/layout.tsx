@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const mode = process.env.FOSSAPAY_MODE === 'live' ? 'live' : 'mock';
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <AppShell name="SquadPay" mark="SQ" mode={mode} homeHref="/squadpay" nav={[{ href: '/squadpay', label: 'New split' }]}>
           {children}

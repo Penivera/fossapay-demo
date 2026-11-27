@@ -15,6 +15,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "dev": "node scripts/dev.mjs",
+    "dev:live": "node scripts/dev.mjs --live",
     "dev:offramp": "npm run dev --workspace=demos/near-offramp",
     "dev:safedeal": "npm run dev --workspace=demos/safedeal",
     "dev:squadpay": "npm run dev --workspace=demos/squadpay",

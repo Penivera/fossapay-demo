@@ -401,16 +401,20 @@ class SquadPayStore {
     return room;
   }
 
-  async reconcileRoomCheckouts(roomId: string): Promise<Room | undefined> {
+  async reconcileRoomCheckouts(roomId: string, participantId?: string): Promise<Room | undefined> {
     const room = this.getRoom(roomId);
     if (!room) return undefined;
     if (isSettledRoomStatus(room.status)) return room;
 
-    const pending = this.reconcileInFlight.get(roomId);
+    const inflightKey = participantId ? `${roomId}:${participantId}` : roomId;
+    const pending =
+      this.reconcileInFlight.get(inflightKey) ||
+      (participantId ? this.reconcileInFlight.get(roomId) : undefined);
     if (pending) return pending;
 
     const run = (async () => {
       for (const p of room.participants) {
+        if (participantId && p.id !== participantId) continue;
         if (p.status === 'checkout_generated' && p.checkout?.reference) {
           try {
             const checkout = await this.fossaClient.checkouts.getCheckoutByReference(p.checkout.reference).catch(() => null);
@@ -425,11 +429,11 @@ class SquadPayStore {
       return this.getRoom(roomId);
     })();
 
-    this.reconcileInFlight.set(roomId, run);
+    this.reconcileInFlight.set(inflightKey, run);
     try {
       return await run;
     } finally {
-      this.reconcileInFlight.delete(roomId);
+      this.reconcileInFlight.delete(inflightKey);
     }
   }
 
